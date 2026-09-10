@@ -163,7 +163,7 @@ input,select,textarea,button{font-family:inherit}
 .barline .fill{height:100%;border-radius:5px;background:var(--brass-bright)}
 .barline .n{width:30px;flex:none;text-align:right;font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink-dim)}
 
-.sync-body{padding:18px 16px 28px;display:flex;flex-direction:column;gap:18px}
+.sync-body{padding:18px 16px 100px;display:flex;flex-direction:column;gap:18px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sync-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:18px}
 .sync-card h3{font:600 15px/1.3 'Zilla Slab',serif;color:var(--ink);margin-bottom:6px}
 .sync-card p{margin:0;font:400 12.5px/1.6 'IBM Plex Sans',sans-serif;color:var(--ink-dim)}
@@ -522,17 +522,20 @@ function renderTabbar(){
   var tabs = [
     {id:"regal", ic:"▤", lb:"Regal"},
     {id:"search", ic:"⌕", lb:"Suche"},
+    {id:"sync", ic:"⇅", lb:"Sync"},
     {id:"more", ic:"≡", lb:"Mehr"}
   ];
   return '<div class="tabbar"><div class="tabbar-inner">' + tabs.map(function(t){
-    var active = (state.view===t.id) || (t.id==="more" && ["stats","sync"].indexOf(state.view)>=0);
+    var active = (state.view===t.id) || (t.id==="more" && state.view==="stats");
     return '<button class="tab'+(active?' active':'')+'" data-tab="'+t.id+'"><span class="ic">'+t.ic+'</span><span class="lb">'+t.lb+'</span></button>';
   }).join('') + '<button class="fab" data-newgame="1" aria-label="Box erfassen">+</button></div></div>';
 }
 function spineCardHtml(g){
-  var shaded = hasCover(g) ? ' shade' : '';
+  if(hasCover(g)){
+    return '<div class="spine" style="'+coverBgStyle(g)+'" data-open="'+esc(g.name)+'"></div>';
+  }
   return '<div class="spine" style="'+coverBgStyle(g)+'" data-open="'+esc(g.name)+'">'+
-    '<div class="inner'+shaded+'"><div class="stripe"></div>'+
+    '<div class="inner"><div class="stripe"></div>'+
     '<div class="name">'+esc(g.name)+'</div>'+
     '<div class="meta">'+esc(g.publisher||"—")+'<br>'+esc(g.medium||"")+' · '+esc(g.jahr||"?")+'</div>'+
     '</div></div>';
@@ -602,11 +605,9 @@ function viewSearch(){
   return html;
 }
 function viewMore(){
-  var nc = loadNC();
   var html = '<div class="bar"><div class="eyebrow">Mehr</div><h1>Verwaltung</h1></div><div class="content">';
   html += '<div class="menu" style="margin-top:16px">'+
     '<div class="menu-item" data-tab="stats"><div><div class="t">Werte &amp; Bestand</div><div class="s">Statistik zu deiner Sammlung</div></div><div class="arrow">›</div></div>'+
-    '<div class="menu-item" data-tab="sync"><div><div class="t">Sync</div><div class="s">'+(nc.url? '<span class="sync-dot ok"></span>Nextcloud verbunden' : '<span class="sync-dot off"></span>Nextcloud einrichten / CSV-Datei')+'</div></div><div class="arrow">›</div></div>'+
   '</div>';
   html += '<div class="pcnote" style="margin:0 16px">DOSBox/ScummVM-Zuordnung ist PC-spezifisch eingerichtet – hier siehst du nur, ob eines davon für ein Spiel aktiv ist, nicht die Pfade/Konfiguration. Sie bleiben beim Sync erhalten.</div>';
   html += '</div>' + renderTabbar();
@@ -647,7 +648,7 @@ function viewSync(){
   var meta = loadMeta();
   var nc = loadNC();
   function fmtT(ts){ return ts ? new Date(ts).toLocaleString("de-DE") : "noch nie"; }
-  var html = '<div class="backbar"><div class="iconbtn" data-tab="more">‹</div><div class="title">Sync</div><div class="spacer"></div></div><div class="sync-body">';
+  var html = '<div class="bar"><div class="eyebrow">Cloud-Abgleich</div><h1>Sync</h1></div><div class="sync-body">';
 
   html += '<div class="sync-card"><h3>Nextcloud (WebDAV)</h3><p>Trägt Spiele bei jeder Änderung automatisch hoch und prüft beim Öffnen der App auf eine neuere Version vom PC. Zugangsdaten bleiben nur lokal auf diesem Gerät gespeichert.</p>';
   html += '<div class="form" style="padding:14px 0 0;gap:12px">'+
@@ -666,7 +667,7 @@ function viewSync(){
     '<input type="file" accept=".csv,text/csv" class="filepick" id="filePick"></div>';
 
   html += '<div class="pcnote">Hinweis: Ob dein Nextcloud-Server browserseitige Anfragen (CORS) von dieser Seite erlaubt, hängt von seiner Konfiguration ab – das konnte ich vorab nicht testen. Schlägt es fehl, hilft meist eine CORS-Freigabe für diese Seite auf dem Nextcloud-Server.</div>';
-  html += '</div>';
+  html += '</div>' + renderTabbar();
   return html;
 }
 function fieldRow(k,v){ return '<div class="row"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v||"—")+'</div></div>'; }
@@ -674,10 +675,10 @@ function viewDetail(){
   var g = state.games[findIndex(state.selected)];
   if(!g) return viewSearch();
   var zc = zustandClass(g.zustand);
-  var shaded = hasCover(g) ? ' shade' : '';
+  var coverInner = hasCover(g) ? '' : '<div class="inner"><div class="stripe"></div><div class="name">'+esc(g.name)+'</div><div class="pub">'+esc(g.publisher||"")+'</div></div>';
   var html = '<div class="backbar"><div class="iconbtn" data-back="1">‹</div><div class="title">'+esc(g.genre||"Sonstige")+'</div><div class="spacer"></div></div>';
   html += '<div class="detail-hero"><div class="detail-top">'+
-    '<div class="cover" style="'+coverBgStyle(g)+'"><div class="inner'+shaded+'"><div class="stripe"></div><div class="name">'+esc(g.name)+'</div><div class="pub">'+esc(g.publisher||"")+'</div></div></div>'+
+    '<div class="cover" style="'+coverBgStyle(g)+'">'+coverInner+'</div>'+
     '<div class="detail-meta"><h2>'+esc(g.name)+'</h2>'+
     '<div class="detail-line">'+esc(g.jahr||"?")+' · '+esc(g.entwickler||g.publisher||"—")+'</div>'+
     '<div class="badges">'+(g.medium?'<span class="badge neutral">'+esc(g.medium)+'</span>':'')+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+pcBadges(g)+'</div>'+
