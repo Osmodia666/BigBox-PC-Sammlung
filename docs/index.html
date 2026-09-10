@@ -97,11 +97,14 @@ input,select,textarea,button{font-family:inherit}
 .resultcount{padding:12px 16px 6px;font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:var(--ink-dim);text-transform:uppercase}
 
 .tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;background:transparent;pointer-events:none;padding:0 0 calc(10px + env(safe-area-inset-bottom))}
-.tabbar-inner{pointer-events:auto;max-width:480px;width:calc(100% - 24px);margin:0 12px;display:flex;background:var(--shelf);border:1px solid var(--shelf-line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.tabbar-inner{pointer-events:auto;max-width:480px;width:calc(100% - 24px);margin:0 12px;display:flex;background:var(--shelf);border:1px solid var(--shelf-line);border-radius:16px;box-shadow:var(--shadow);overflow:visible;position:relative}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 4px 9px;cursor:pointer;color:var(--shelf-ink-dim);background:none;border:0}
 .tab.active{color:var(--brass-bright)}
 .tab .ic{font:400 18px/1 'IBM Plex Mono',monospace}
 .tab .lb{font:500 9.5px/1 'IBM Plex Sans',sans-serif;letter-spacing:.02em}
+.fab{pointer-events:auto;position:absolute;left:50%;top:0;transform:translate(-50%,-58%);width:56px;height:56px;border-radius:50%;background:linear-gradient(160deg,var(--brass-bright),var(--brass));border:4px solid var(--paper);box-shadow:0 8px 18px -6px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1c1a16;font:400 26px/1 'IBM Plex Sans',sans-serif}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .fab{border-color:var(--paper)} }
+:root[data-theme="dark"] .fab{border-color:var(--paper)}
 
 .detail-hero{padding:20px 16px 24px;background:var(--paper-raised)}
 .detail-top{display:flex;gap:16px;align-items:flex-start}
@@ -279,6 +282,12 @@ function coverMime(ext){
   return "image/jpeg";
 }
 function hasCover(g){ return !!(g && g.coverBase64); }
+function pcBadges(g){
+  var out = [];
+  if(g && g.useDosBox==="Ja") out.push('<span class="badge neutral">DOSBox eingerichtet</span>');
+  if(g && g.useScummVM==="Ja") out.push('<span class="badge neutral">ScummVM eingerichtet</span>');
+  return out.join('');
+}
 function coverBgStyle(g){
   if(hasCover(g)) return "background-image:url('data:"+coverMime(g.coverExt)+";base64,"+g.coverBase64+"')";
   var color = genreColor(g && g.genre);
@@ -475,21 +484,37 @@ function fileToCompressedBase64(file, maxDim){
 
 /* ---------------- barcode scanner (ZXing) ---------------- */
 var zxingReader = null;
+var scanStream = null;
 function stopScanner(){
   if(zxingReader){ try{ zxingReader.reset(); }catch(e){} zxingReader = null; }
+  if(scanStream){ try{ scanStream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} scanStream = null; }
 }
-function startScanner(videoEl, onResult, onError){
+/* Must be called directly inside a click handler, with no render()/DOM
+   rebuild in between - iOS Safari denies getUserMedia (NotAllowedError)
+   if it isn't clearly still inside the user gesture. We grab the stream
+   FIRST, then let the caller render the video element, then attach. */
+function requestCameraStream(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    return Promise.reject(new Error("Dieser Browser unterstützt keinen Kamerazugriff."));
+  }
+  return navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+}
+function attachScannerToVideo(videoEl, stream, onResult, onError){
   if(!window.ZXing){ onError("Scanner-Bibliothek konnte nicht geladen werden (kein Internet beim Laden der Seite?)."); return; }
+  scanStream = stream;
+  videoEl.srcObject = stream;
+  videoEl.play().catch(function(){});
   try{
     zxingReader = new ZXing.BrowserMultiFormatReader();
-    zxingReader.decodeFromConstraints(
-      { video: { facingMode: "environment" } },
-      videoEl,
-      function(result, err){
-        if(result){ onResult(result.getText()); }
-      }
-    ).catch(function(err){ onError("Kamera nicht verfügbar: " + err.message); });
+    zxingReader.decodeFromStream(stream, videoEl, function(result){
+      if(result){ onResult(result.getText()); }
+    }).catch(function(err){ onError("Scanner-Fehler: " + err.message); });
   }catch(e){ onError("Scanner-Fehler: " + e.message); }
+}
+function cameraErrorMessage(err){
+  if(err && err.name === "NotAllowedError") return "Kamera-Zugriff wurde blockiert. In Safari unter Einstellungen → Safari → Kamera (oder per Tippen auf das „aA“-Symbol in der Adressleiste → Website-Einstellungen) für diese Seite erlauben.";
+  if(err && err.name === "NotFoundError") return "Keine Kamera gefunden.";
+  return "Kamera nicht verfügbar: " + (err && err.message ? err.message : err);
 }
 
 /* ---------------- render helpers ---------------- */
@@ -502,7 +527,7 @@ function renderTabbar(){
   return '<div class="tabbar"><div class="tabbar-inner">' + tabs.map(function(t){
     var active = (state.view===t.id) || (t.id==="more" && ["stats","sync"].indexOf(state.view)>=0);
     return '<button class="tab'+(active?' active':'')+'" data-tab="'+t.id+'"><span class="ic">'+t.ic+'</span><span class="lb">'+t.lb+'</span></button>';
-  }).join('') + '</div></div>';
+  }).join('') + '<button class="fab" data-newgame="1" aria-label="Box erfassen">+</button></div></div>';
 }
 function spineCardHtml(g){
   var shaded = hasCover(g) ? ' shade' : '';
@@ -573,7 +598,6 @@ function viewSearch(){
   '</div>';
   html += '<div class="content"><div class="resultcount">'+results.length+' Treffer</div>';
   html += results.length ? '<div class="list">'+results.map(listCardHtml).join('')+'</div>' : '<div class="empty">Kein Treffer.</div>';
-  html += '<div style="padding:0 16px"><button class="btn ghost full" data-newgame="1">+ Box erfassen</button></div>';
   html += '</div>' + renderTabbar();
   return html;
 }
@@ -583,9 +607,8 @@ function viewMore(){
   html += '<div class="menu" style="margin-top:16px">'+
     '<div class="menu-item" data-tab="stats"><div><div class="t">Werte &amp; Bestand</div><div class="s">Statistik zu deiner Sammlung</div></div><div class="arrow">›</div></div>'+
     '<div class="menu-item" data-tab="sync"><div><div class="t">Sync</div><div class="s">'+(nc.url? '<span class="sync-dot ok"></span>Nextcloud verbunden' : '<span class="sync-dot off"></span>Nextcloud einrichten / CSV-Datei')+'</div></div><div class="arrow">›</div></div>'+
-    '<div class="menu-item" data-newgame="1"><div><div class="t">Box erfassen</div><div class="s">Foto, Barcode-Scan oder manuell</div></div><div class="arrow">›</div></div>'+
   '</div>';
-  html += '<div class="pcnote" style="margin:0 16px">DOSBox-/ScummVM-Startbefehle sind PC-spezifisch und werden hier nur angezeigt, nicht bearbeitet – sie bleiben beim Sync erhalten.</div>';
+  html += '<div class="pcnote" style="margin:0 16px">DOSBox/ScummVM-Zuordnung ist PC-spezifisch eingerichtet – hier siehst du nur, ob eines davon für ein Spiel aktiv ist, nicht die Pfade/Konfiguration. Sie bleiben beim Sync erhalten.</div>';
   html += '</div>' + renderTabbar();
   return html;
 }
@@ -657,13 +680,10 @@ function viewDetail(){
     '<div class="cover" style="'+coverBgStyle(g)+'"><div class="inner'+shaded+'"><div class="stripe"></div><div class="name">'+esc(g.name)+'</div><div class="pub">'+esc(g.publisher||"")+'</div></div></div>'+
     '<div class="detail-meta"><h2>'+esc(g.name)+'</h2>'+
     '<div class="detail-line">'+esc(g.jahr||"?")+' · '+esc(g.entwickler||g.publisher||"—")+'</div>'+
-    '<div class="badges">'+(g.medium?'<span class="badge neutral">'+esc(g.medium)+'</span>':'')+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+'</div>'+
+    '<div class="badges">'+(g.medium?'<span class="badge neutral">'+esc(g.medium)+'</span>':'')+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+pcBadges(g)+'</div>'+
     '</div></div>';
   html += '<div class="valuebox"><div><div class="lb">Geschätzter Wert</div></div><div class="v tnum">'+fmtEuro(parseWert(g.wert))+'</div></div>';
   html += '<div class="rows">'+fieldRow("Sprache",g.sprache)+fieldRow("Publisher",g.publisher)+fieldRow("Entwickler",g.entwickler)+fieldRow("Plattform",g.plattform)+fieldRow("Genre",g.genre)+fieldRow("Inhalt",g.inhalt)+fieldRow("Vollständig",g.vollstaendig)+'</div>';
-  if(g.exePath || g.useDosBox==="Ja" || g.useScummVM==="Ja"){
-    html += '<div class="pcnote">PC-Start: '+esc(g.exePath||"—")+(g.useDosBox==="Ja"?" · via DOSBox":"")+(g.useScummVM==="Ja"?" · via ScummVM":"")+'</div>';
-  }
   html += '<div class="actions"><button class="btn ghost" data-edit="'+esc(g.name)+'">Bearbeiten</button><button class="btn danger" data-delete="'+esc(g.name)+'">Löschen</button></div></div>';
   return html;
 }
@@ -672,31 +692,33 @@ var ZUSTAND_OPTIONS = ["Neu (eingeschweißt)","Neuwertig","Sehr Gut","Gut","Besp
 var MEDIUM_OPTIONS = ["CD-ROM","DVD-ROM","3,5 Floppy","5,25 Floppy","3,5 + 5,25","Digital"];
 var BLANK_GAME = {name:"",sprache:"",medium:"",zustand:"",inhalt:"",vollstaendig:"",publisher:"",jahr:"",entwickler:"",plattform:"PC",coverBase64:"",coverExt:"",wert:"",genre:"",exePath:"",useDosBox:"",dosBoxConfig:"",useScummVM:"",scummVMPath:""};
 
-function viewCapture(){
+function viewEdit(){
+  var isNew = state.editing === null;
   var g = state.addFlow || Object.assign({}, BLANK_GAME);
-  var html = '<div class="backbar"><button class="linkbtn" data-back="1">Abbrechen</button><div class="title">BOX ERFASSEN</div><div class="spacer"></div></div>';
+
+  function pillrow(name, options, current){
+    return '<div class="pillrow">'+options.map(function(o){ return '<button type="button" class="pill'+(o===current?' active':'')+'" data-pill="'+name+'" data-val="'+esc(o)+'">'+esc(o)+'</button>'; }).join('')+'</div>';
+  }
+  var html = '<div class="backbar"><button class="linkbtn" data-canceledit="1">Abbrechen</button><div class="title">'+(isNew?'BOX ERFASSEN':'BEARBEITEN')+'</div><button class="linkbtn accent" id="btnSave">Speichern</button></div>';
   html += '<div class="form">';
 
-  html += '<div class="field"><div class="lb">1 · Cover fotografieren (optional)</div>';
-  if(hasCover(g)){
-    html += '<div class="cover" style="'+coverBgStyle(g)+';width:100%;height:150px"></div>';
-  }
+  html += '<div class="field"><div class="lb">Cover fotografieren</div>';
+  if(hasCover(g)){ html += '<div class="cover" style="'+coverBgStyle(g)+';width:100%;height:150px"></div>'; }
   html += '<input type="file" accept="image/*" capture="environment" class="filepick" id="capturePhoto">'+
           '<button class="btn ghost full" id="btnCapturePhoto">'+(hasCover(g)?'Neues Foto aufnehmen':'Box abfotografieren')+'</button></div>';
 
-  html += '<div class="field"><div class="lb">2 · Barcode scannen (optional)</div>';
+  html += '<div class="field"><div class="lb">Barcode scannen</div>';
   if(state.scanBusy){
     html += '<div class="scanwrap"><video id="scanVideo" autoplay playsinline muted></video><div class="frame"></div></div>'+
             '<button class="btn ghost full" id="btnStopScan">Scan beenden</button>';
   } else {
     html += '<button class="btn ghost full" id="btnStartScan">Barcode scannen</button>'+
-            '<div class="pcnote">Der Scan liest nur den Code – es gibt keine Barcode-Produktdatenbank angebunden (auch die PC-App hat keine). Das Ergebnis landet als Text im Namensfeld zum Nachbearbeiten.</div>';
+            '<div class="pcnote">Der Scan liest nur den Code – es gibt keine Barcode-Produktdatenbank angebunden (auch die PC-App hat keine). Das Ergebnis landet, falls der Name noch leer ist, als Text im Namensfeld zum Nachbearbeiten.</div>';
   }
   html += '</div>';
 
-  html += '<div class="field"><div class="lb">3 · Name &amp; Online-Abgleich (RAWG/IGDB)</div>'+
-    '<input type="text" id="f_name" placeholder="Titel eingeben…" value="'+esc(g.name)+'">'+
-    '<button class="btn primary full" id="btnMatch" '+(state.matchBusy?'disabled':'')+'>'+(state.matchBusy?'<span class="spin"></span>Suche läuft…':'Bei RAWG/IGDB suchen')+'</button></div>';
+  html += '<div class="field"><div class="lb">Name</div><input type="text" id="f_name" placeholder="Titel eingeben…" value="'+esc(g.name)+'">'+
+    '<button class="btn primary full" style="margin-top:9px" id="btnMatch" '+(state.matchBusy?'disabled':'')+'>'+(state.matchBusy?'<span class="spin"></span>Suche läuft…':'Bei RAWG/IGDB suchen')+'</button></div>';
 
   if(state.matchResult){
     var m = state.matchResult;
@@ -708,25 +730,6 @@ function viewCapture(){
         '<button class="btn ghost full" style="margin-top:12px" id="btnUseMatch">Übernehmen</button></div>';
     }
   }
-
-  html += '<button class="btn primary full" id="btnToDetails">Weiter zu allen Feldern</button>';
-  html += '</div>';
-  return html;
-}
-
-function viewEdit(){
-  var isNew = state.editing === null;
-  var base = state.addFlow || (isNew ? Object.assign({}, BLANK_GAME) : state.games[findIndex(state.editing)]);
-  if(!base) return viewSearch();
-  var g = base;
-
-  function pillrow(name, options, current){
-    return '<div class="pillrow">'+options.map(function(o){ return '<button type="button" class="pill'+(o===current?' active':'')+'" data-pill="'+name+'" data-val="'+esc(o)+'">'+esc(o)+'</button>'; }).join('')+'</div>';
-  }
-  var html = '<div class="backbar"><button class="linkbtn" data-back="1">Abbrechen</button><div class="title">'+(isNew?'NEU ERFASSEN':'BEARBEITEN')+'</div><button class="linkbtn accent" id="btnSave">Speichern</button></div>';
-  html += '<div class="form">';
-  if(hasCover(g)){ html += '<div class="cover" style="'+coverBgStyle(g)+';width:100%;height:150px"></div>'; }
-  html += '<div class="field"><div class="lb">Name</div><input type="text" id="f_name" value="'+esc(g.name)+'"></div>';
   html += '<div class="field"><div class="lb">Publisher</div><input type="text" id="f_publisher" value="'+esc(g.publisher)+'"></div>';
   html += '<div class="field"><div class="lb">Entwickler</div><input type="text" id="f_entwickler" value="'+esc(g.entwickler)+'"></div>';
   html += '<div style="display:flex;gap:12px"><div class="field" style="flex:1"><div class="lb">Jahr</div><input type="text" id="f_jahr" value="'+esc(g.jahr)+'"></div>'+
@@ -738,8 +741,8 @@ function viewEdit(){
   html += '<label class="checkline"><input type="checkbox" id="f_voll" '+(g.vollstaendig==="Ja"?"checked":"")+'><span>Vollständig (Anleitung, Karten etc.)</span></label>';
   html += '<div class="field"><div class="lb">Zustand</div>'+pillrow("zustand",ZUSTAND_OPTIONS,g.zustand)+'</div>';
   html += '<div class="field"><div class="lb">Medium</div>'+pillrow("medium",MEDIUM_OPTIONS,g.medium)+'</div>';
-  if(g.exePath || g.useDosBox==="Ja" || g.useScummVM==="Ja"){
-    html += '<div class="pcnote">PC-Startbefehl (nur am PC relevant, bleibt beim Speichern unverändert): '+esc(g.exePath||"—")+'</div>';
+  if(g.useDosBox==="Ja" || g.useScummVM==="Ja"){
+    html += '<div class="pcnote">'+pcBadges(g)+' — nur am PC eingerichtet, bleibt beim Speichern unverändert.</div>';
   }
   html += '</div>';
   return html;
@@ -756,7 +759,6 @@ function render(){
     case "stats": html = viewStats(); break;
     case "sync": html = viewSync(); break;
     case "detail": html = viewDetail(); break;
-    case "capture": html = viewCapture(); break;
     case "edit": html = viewEdit(); break;
     default: html = viewRegal();
   }
@@ -772,23 +774,6 @@ function render(){
   }
   wireEvents(root);
   wireToastEvents();
-
-  if(state.view === "capture" && state.scanBusy){
-    var video = document.getElementById("scanVideo");
-    if(video){
-      startScanner(video, function(text){
-        state.scanBusy = false;
-        var g = Object.assign({}, state.addFlow || BLANK_GAME, { name: (state.addFlow&&state.addFlow.name) || text });
-        state.addFlow = g;
-        showToast("Barcode gelesen: " + text);
-        render();
-      }, function(err){
-        state.scanBusy = false;
-        showToast(err);
-        render();
-      });
-    }
-  }
 }
 function wireToastEvents(){
   var cancel = document.getElementById("confirmCancel");
@@ -800,9 +785,22 @@ function wireToastEvents(){
 function wireEvents(root){
   root.querySelectorAll("[data-tab]").forEach(function(el){ el.addEventListener("click", function(){ go(el.getAttribute("data-tab")); }); });
   root.querySelectorAll("[data-open]").forEach(function(el){ el.addEventListener("click", function(){ go("detail", {selected: el.getAttribute("data-open")}); }); });
-  root.querySelectorAll("[data-back]").forEach(function(el){ el.addEventListener("click", function(){ state.addFlow=null; state.matchResult=null; go("search"); }); });
-  root.querySelectorAll("[data-edit]").forEach(function(el){ el.addEventListener("click", function(){ go("edit", {editing: el.getAttribute("data-edit"), addFlow:null}); }); });
-  root.querySelectorAll("[data-newgame]").forEach(function(el){ el.addEventListener("click", function(){ go("capture", {editing:null, addFlow: Object.assign({}, BLANK_GAME), matchResult:null}); }); });
+  root.querySelectorAll("[data-back]").forEach(function(el){ el.addEventListener("click", function(){ go("search"); }); });
+  root.querySelectorAll("[data-canceledit]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var wasEditing = state.editing;
+      state.addFlow = null; state.matchResult = null;
+      if(wasEditing !== null){ go("detail", {selected: wasEditing}); } else { go("search"); }
+    });
+  });
+  root.querySelectorAll("[data-edit]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var name = el.getAttribute("data-edit");
+      var idx = findIndex(name);
+      go("edit", { editing: name, addFlow: Object.assign({}, idx>=0 ? state.games[idx] : BLANK_GAME), matchResult: null });
+    });
+  });
+  root.querySelectorAll("[data-newgame]").forEach(function(el){ el.addEventListener("click", function(){ go("edit", {editing:null, addFlow: Object.assign({}, BLANK_GAME), matchResult:null}); }); });
   root.querySelectorAll("[data-delete]").forEach(function(el){
     el.addEventListener("click", function(){
       var name = el.getAttribute("data-delete");
@@ -830,7 +828,7 @@ function wireEvents(root){
     });
   });
 
-  /* capture flow */
+  /* capture flow (available both when adding a new game and when editing one) */
   var btnCapturePhoto = document.getElementById("btnCapturePhoto");
   var capturePhoto = document.getElementById("capturePhoto");
   if(btnCapturePhoto && capturePhoto){
@@ -846,7 +844,26 @@ function wireEvents(root){
     });
   }
   var btnStartScan = document.getElementById("btnStartScan");
-  if(btnStartScan) btnStartScan.addEventListener("click", function(){ state.scanBusy = true; render(); });
+  if(btnStartScan){
+    btnStartScan.addEventListener("click", function(){
+      /* getUserMedia is requested HERE, synchronously in the click handler,
+         before any render() touches the DOM - iOS Safari denies the prompt
+         (NotAllowedError) if that boundary isn't crisp. */
+      requestCameraStream().then(function(stream){
+        state.scanBusy = true; render();
+        var video = document.getElementById("scanVideo");
+        if(!video){ stream.getTracks().forEach(function(t){t.stop();}); return; }
+        attachScannerToVideo(video, stream, function(text){
+          state.scanBusy = false; stopScanner();
+          var patch = { };
+          if(!(state.addFlow && state.addFlow.name)) patch.name = text;
+          state.addFlow = Object.assign({}, state.addFlow || BLANK_GAME, patch);
+          showToast("Barcode gelesen: " + text);
+          render();
+        }, function(err){ state.scanBusy = false; stopScanner(); showToast(err); render(); });
+      }).catch(function(err){ showToast(cameraErrorMessage(err)); });
+    });
+  }
   var btnStopScan = document.getElementById("btnStopScan");
   if(btnStopScan) btnStopScan.addEventListener("click", function(){ state.scanBusy = false; stopScanner(); render(); });
 
@@ -882,15 +899,6 @@ function wireEvents(root){
       render();
     });
   }
-  var btnToDetails = document.getElementById("btnToDetails");
-  if(btnToDetails){
-    btnToDetails.addEventListener("click", function(){
-      var nameEl = document.getElementById("f_name");
-      if(nameEl) state.addFlow = Object.assign({}, state.addFlow || BLANK_GAME, { name: nameEl.value.trim() });
-      go("edit", { editing: null });
-    });
-  }
-
   var btnSave = document.getElementById("btnSave");
   if(btnSave){
     btnSave.addEventListener("click", function(){
@@ -898,8 +906,7 @@ function wireEvents(root){
       if(!name){ showToast("Bitte einen Namen eingeben."); return; }
       var isNew = state.editing === null;
       var existingIdx = findIndex(isNew ? name : state.editing);
-      var carry = state.addFlow || (!isNew && existingIdx>=0 ? state.games[existingIdx] : BLANK_GAME);
-      var base = Object.assign({}, carry);
+      var base = Object.assign({}, state.addFlow || BLANK_GAME);
 
       base.name = name;
       base.publisher = document.getElementById("f_publisher").value;
