@@ -205,6 +205,8 @@ var CSV_KEYS = ["name","sprache","medium","zustand","inhalt","vollstaendig","pub
 var STORAGE_KEY = "bigbox:games:v2";
 var META_KEY = "bigbox:meta:v2";
 var NC_KEY = "bigbox:nextcloud:v1";
+var FRIENDS_KEY = "bigbox:friends:v1";
+var PROFILE_KEY = "bigbox:profile:v1";
 
 var RAWG_API_KEY = "e2064b227d2b4bfe859e025d1253553b";
 var IGDB_CLIENT_ID = "s0r5nobvuvpljlt3kwjh45lxhaa6zy";
@@ -218,6 +220,57 @@ function loadMeta(){ try{ return JSON.parse(localStorage.getItem(META_KEY)) || {
 function saveMeta(m){ try{ localStorage.setItem(META_KEY, JSON.stringify(m)); }catch(e){} }
 function loadNC(){ try{ return JSON.parse(localStorage.getItem(NC_KEY)) || {}; }catch(e){ return {}; } }
 function saveNC(m){ try{ localStorage.setItem(NC_KEY, JSON.stringify(m)); }catch(e){} }
+function loadFriends(){ try{ return JSON.parse(localStorage.getItem(FRIENDS_KEY)) || []; }catch(e){ return []; } }
+function saveFriends(list){ try{ localStorage.setItem(FRIENDS_KEY, JSON.stringify(list)); }catch(e){} }
+function loadProfile(){ try{ return JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; }catch(e){ return {}; } }
+function saveProfile(p){ try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }catch(e){} }
+
+/* ---------------- Tauschliste (peer-to-peer trade sharing) ----------------
+   No backend of our own: each collector publishes a small JSON file
+   (only their tauschbar=Ja games) at any public URL they control (e.g.
+   a Nextcloud public share link) and shares that URL as an "invite
+   link". Friends' devices just fetch()  that URL directly - nothing
+   flows through us. */
+function buildTauschliste(){
+  var profile = loadProfile();
+  var games = state.games.filter(function(g){ return g.tauschbar === "Ja"; }).map(function(g){
+    return { name:g.name, jahr:g.jahr, publisher:g.publisher, entwickler:g.entwickler, medium:g.medium, zustand:g.zustand, genre:g.genre, wert:g.wert, coverBase64:g.coverBase64, coverExt:g.coverExt };
+  });
+  return { owner: profile.displayName || "Unbenannt", updatedAt: Date.now(), games: games };
+}
+function exportTauschlisteFile(){
+  var blob = new Blob([JSON.stringify(buildTauschliste(), null, 2)], {type:"application/json"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "tauschliste.json";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+}
+function pushTauschlisteToNextcloud(){
+  var nc = loadNC();
+  if(!nc.url) return Promise.reject(new Error("Keine Nextcloud-Verbindung eingerichtet."));
+  var siblingUrl = nc.url.replace(/[^/]*$/, "tauschliste.json");
+  return fetch(siblingUrl, {
+    method: "PUT",
+    headers: { "Authorization": ncAuthHeader(nc), "Content-Type": "application/json" },
+    body: JSON.stringify(buildTauschliste(), null, 2)
+  }).then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return siblingUrl; });
+}
+
+var friendDataCache = {}; /* url -> {status:'loading'|'ok'|'error', owner, games, error} */
+function fetchFriendList(friend){
+  friendDataCache[friend.url] = { status: "loading" };
+  fetch(friend.url, { cache: "no-store" })
+    .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(function(data){
+      friendDataCache[friend.url] = { status: "ok", owner: data.owner || friend.name, games: Array.isArray(data.games) ? data.games : [] };
+      if(state.view === "wishlist") render();
+    })
+    .catch(function(err){
+      friendDataCache[friend.url] = { status: "error", error: err.message + " (Link falsch, nicht öffentlich erreichbar, oder Server erlaubt keine Browser-Anfragen/CORS)" };
+      if(state.view === "wishlist") render();
+    });
+}
 
 function loadGames(){
   try{
@@ -697,17 +750,72 @@ function viewSync(){
   html += '</div>';
   return html;
 }
+function friendCardHtml(g){
+  var zc = zustandClass(g.zustand);
+  return '<div class="card" style="cursor:default">'+
+    '<div class="thumb" style="'+coverBgStyle(g)+'"></div>'+
+    '<div class="body"><div class="title">'+esc(g.name)+'</div><div class="sub">'+esc(g.publisher||"—")+' · '+esc(g.jahr||"?")+'</div></div>'+
+    '<div class="end">'+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+'</div>'+
+  '</div>';
+}
 function viewWishlist(){
   var mine = state.games.filter(function(g){ return g.tauschbar==="Ja"; }).sort(function(a,b){ return a.name.localeCompare(b.name,"de"); });
+  var friends = loadFriends();
+  var profile = loadProfile();
+  var nc = loadNC();
+
   var html = '<div class="bar"><div class="eyebrow">Tauschbörse</div><h1>Wunschliste</h1>'+
     '<div class="detail-line" style="color:var(--shelf-ink-dim);margin-top:3px">'+mine.length+' eigene Spiele als tauschbar markiert</div></div>';
   html += '<div class="content">';
+
   html += '<div class="section-title">Meine tauschbaren Spiele</div>';
   html += mine.length
     ? '<div class="list">'+mine.map(listCardHtml).join('')+'</div>'
-    : '<div class="empty">Noch keine Spiele als „Tauschbar" markiert. Öffne ein Spiel → Bearbeiten → Haken bei „Tauschbar" setzen.</div>';
+    : '<div class="empty">Noch keine Spiele als „Tauschbar“ markiert. Öffne ein Spiel → Bearbeiten → Haken bei „Tauschbar“ setzen.</div>';
+
+  html += '<div class="section-title">Meine Sammlung veröffentlichen</div>';
+  html += '<div class="sync-card" style="margin:0 16px 20px"><h3>Einladungslink für Freunde</h3>'+
+    '<p>Erzeugt eine kleine Datei mit nur deinen tauschbaren Spielen. Lade sie irgendwo mit öffentlichem Link hoch (z. B. Nextcloud → Datei → Teilen → Link erstellen → „Direkter Download-Link“) und schick diesen Link an Freunde – die tragen ihn dann bei sich unter „Freund hinzufügen“ ein.</p>'+
+    '<div class="form" style="padding:12px 0 0;gap:10px">'+
+      '<div class="field"><div class="lb">Dein Anzeigename</div><input type="text" id="f_displayname" value="'+esc(profile.displayName||"")+'"></div>'+
+    '</div>'+
+    '<div class="actions" style="margin-top:12px"><button class="btn ghost" id="btnExportTausch">Als Datei exportieren</button>'+
+      (nc.url ? '<button class="btn primary" id="btnPushTausch">Zu Nextcloud hochladen</button>' : '')+
+    '</div>'+
+    (nc.url ? '<div class="pcnote" style="margin-top:12px">Landet als „tauschliste.json“ neben deiner Sync-Datei auf Nextcloud. Dort musst du einmalig einen öffentlichen Freigabelink dafür erstellen – das kann ich von hier aus nicht selbst einrichten.</div>' : '')+
+  '</div>';
+
   html += '<div class="section-title">Freunde</div>';
-  html += '<div class="sync-card" style="margin:0 16px 20px"><h3>Bald verfügbar</h3><p>Hier sollen später die tauschbaren Spiele befreundeter Sammler erscheinen, z. B. über einen Link zu ihrer veröffentlichten Sammlung. Diese Vernetzung ist noch nicht angebunden.</p></div>';
+  if(!friends.length){
+    html += '<div class="empty">Noch keine Freunde hinzugefügt.</div>';
+  } else {
+    friends.forEach(function(f){
+      var cache = friendDataCache[f.url];
+      if(!cache) fetchFriendList(f);
+      html += '<div class="sync-card" style="margin:0 16px 12px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center"><h3>'+esc(f.name)+'</h3><button class="linkbtn" data-removefriend="'+esc(f.url)+'">Entfernen</button></div>';
+      if(!cache || cache.status==="loading"){
+        html += '<p><span class="spin"></span>Lädt…</p>';
+      } else if(cache.status==="error"){
+        html += '<p>'+esc(cache.error)+'</p>';
+      } else if(!cache.games.length){
+        html += '<p>Aktuell keine tauschbaren Spiele veröffentlicht.</p>';
+      } else {
+        html += '<div class="list" style="padding:10px 0 0">'+cache.games.map(friendCardHtml).join('')+'</div>';
+      }
+      html += '</div>';
+    });
+  }
+
+  html += '<div class="sync-card" style="margin:0 16px 20px"><h3>Freund hinzufügen</h3>'+
+    '<div class="form" style="padding:10px 0 0;gap:10px">'+
+      '<div class="field"><div class="lb">Name</div><input type="text" id="f_friendname" placeholder="z. B. Max"></div>'+
+      '<div class="field"><div class="lb">Sein Einladungslink</div><input type="url" id="f_friendurl" placeholder="https://…/tauschliste.json"></div>'+
+    '</div>'+
+    '<button class="btn primary full" style="margin-top:12px" id="btnAddFriend">Hinzufügen</button>'+
+  '</div>';
+
+  html += '<div class="pcnote">Es gibt keinen eigenen Server dafür – jeder Link zeigt direkt auf die Datei eines Freundes. Ob das klappt, hängt davon ab, ob der jeweilige Speicherort browserseitige Anfragen (CORS) erlaubt.</div>';
   html += '</div>' + renderTabbar();
   return html;
 }
@@ -1035,6 +1143,57 @@ function wireEvents(root){
       pullFromNextcloud(false).then(function(){ return pushToNextcloud(); });
     });
   }
+
+  /* Wunschliste / Tauschbörse */
+  var f_displayname = document.getElementById("f_displayname");
+  if(f_displayname){
+    f_displayname.addEventListener("change", function(){
+      saveProfile({ displayName: f_displayname.value.trim() });
+    });
+  }
+  var btnExportTausch = document.getElementById("btnExportTausch");
+  if(btnExportTausch){
+    btnExportTausch.addEventListener("click", function(){
+      var name = document.getElementById("f_displayname");
+      if(name) saveProfile({ displayName: name.value.trim() });
+      exportTauschlisteFile();
+      showToast("Tauschliste exportiert.");
+    });
+  }
+  var btnPushTausch = document.getElementById("btnPushTausch");
+  if(btnPushTausch){
+    btnPushTausch.addEventListener("click", function(){
+      var name = document.getElementById("f_displayname");
+      if(name) saveProfile({ displayName: name.value.trim() });
+      showToast("Lade hoch…");
+      pushTauschlisteToNextcloud().then(function(url){
+        showToast("Hochgeladen. Jetzt in Nextcloud einen öffentlichen Link für „tauschliste.json“ erstellen.");
+      }).catch(function(err){ showToast("Fehlgeschlagen: " + err.message); });
+    });
+  }
+  var btnAddFriend = document.getElementById("btnAddFriend");
+  if(btnAddFriend){
+    btnAddFriend.addEventListener("click", function(){
+      var name = document.getElementById("f_friendname").value.trim();
+      var url = document.getElementById("f_friendurl").value.trim();
+      if(!name || !url){ showToast("Bitte Name und Link eintragen."); return; }
+      var friends = loadFriends();
+      friends.push({ name: name, url: url });
+      saveFriends(friends);
+      delete friendDataCache[url];
+      showToast("Freund hinzugefügt.");
+      render();
+    });
+  }
+  root.querySelectorAll("[data-removefriend]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var url = el.getAttribute("data-removefriend");
+      var friends = loadFriends().filter(function(f){ return f.url !== url; });
+      saveFriends(friends);
+      delete friendDataCache[url];
+      render();
+    });
+  });
 }
 
 /* ---------------- boot ---------------- */
