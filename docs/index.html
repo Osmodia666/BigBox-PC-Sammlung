@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BigBox">
+<meta name="theme-color" content="#16181d">
+<title>BigBox Mobile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<style>
+:root{
+  --paper:#f7f5f2; --paper-raised:#fffdf9; --ink:#1c1a16; --ink-dim:#65605a;
+  --line:#e2ded4; --shelf:#16181d; --shelf-raised:#22252c; --shelf-line:#33373f;
+  --shelf-ink:#fbfaf7; --shelf-ink-dim:#a8a29a; --brass:#b8862a; --brass-bright:#e8b13c;
+  --good:#3f7d5c; --good-bg:#e4f0e7; --warn:#a3641f; --warn-bg:#f5e8d4; --bad:#a3402f; --bad-bg:#f5dfd9;
+  --neutral-bg:#eeebe3; --shadow: 0 10px 30px -12px rgba(28,26,22,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#131316; --paper-raised:#1b1c20; --ink:#f2efe9; --ink-dim:#a19b8e;
+    --line:#2c2c30; --shelf:#0c0d10; --shelf-raised:#1a1c21; --shelf-line:#2c2f36;
+    --neutral-bg:#232327;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#131316; --paper-raised:#1b1c20; --ink:#f2efe9; --ink-dim:#a19b8e;
+  --line:#2c2c30; --shelf:#0c0d10; --shelf-raised:#1a1c21; --shelf-line:#2c2f36;
+  --neutral-bg:#232327;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-text-size-adjust:100%}
+body{overscroll-behavior:none;padding-bottom:env(safe-area-inset-bottom)}
+h1,h2,h3{margin:0;font-family:'Zilla Slab',Georgia,serif;text-wrap:balance}
+input,select,textarea,button{font-family:inherit}
+::selection{background:var(--brass-bright);color:#1c1a16}
+.app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--paper);position:relative}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.tnum{font-variant-numeric:tabular-nums}
+
+.bar{background:var(--shelf);color:var(--shelf-ink);padding:calc(14px + env(safe-area-inset-top)) 18px 14px}
+.bar-row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.eyebrow{font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;color:var(--shelf-ink-dim);text-transform:uppercase}
+.bar h1{font:600 22px/1.15 'Zilla Slab',serif;color:var(--shelf-ink);margin-top:3px}
+.chip-value{flex:none;background:var(--shelf-raised);border:1px solid var(--shelf-line);border-radius:10px;padding:9px 12px;text-align:right;cursor:pointer}
+.chip-value .eyebrow{color:var(--shelf-ink-dim)}
+.chip-value .v{font:600 17px/1.2 'Zilla Slab',serif;color:var(--brass-bright);margin-top:3px}
+.backbar{display:flex;align-items:center;gap:12px;background:var(--shelf);color:var(--shelf-ink);padding:calc(12px + env(safe-area-inset-top)) 16px 14px}
+.iconbtn{width:34px;height:34px;border-radius:9px;background:var(--shelf-raised);border:1px solid var(--shelf-line);display:flex;align-items:center;justify-content:center;cursor:pointer;font:500 16px 'IBM Plex Mono',monospace;color:var(--shelf-ink);flex:none}
+.backbar .title{font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--shelf-ink-dim);text-transform:uppercase}
+.backbar .spacer{flex:1}
+.linkbtn{font:500 13px/1 'IBM Plex Sans',sans-serif;color:var(--shelf-ink-dim);cursor:pointer;background:none;border:0;padding:8px}
+.linkbtn.accent{color:var(--brass-bright)}
+
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:100px}
+.section-title{padding:16px 18px 8px;font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--ink-dim);text-transform:uppercase}
+
+.shelf-row{padding:0 14px 20px}
+.shelf-label{padding:2px 6px 10px;font:600 13px/1.2 'Zilla Slab',serif;color:var(--ink)}
+.shelf-scroll{display:flex;gap:10px;overflow-x:auto;padding:2px 6px 14px;scroll-snap-type:x proximity}
+.spine{scroll-snap-align:start;flex:none;width:112px;min-height:152px;border-radius:5px 8px 8px 5px;position:relative;cursor:pointer;box-shadow:0 5px 12px -4px rgba(0,0,0,.35);overflow:hidden;background-size:cover;background-position:center}
+.spine::before{content:"";position:absolute;left:0;top:0;bottom:0;width:9px;background:rgba(0,0,0,.28)}
+.spine .inner{position:absolute;inset:0;padding:10px 9px 8px 15px;display:flex;flex-direction:column;gap:5px}
+.spine .inner.shade{background:linear-gradient(rgba(0,0,0,.05),rgba(0,0,0,.55) 70%)}
+.spine .stripe{height:3px;border-radius:2px;background:rgba(255,255,255,.85);width:46%}
+.spine .name{font:600 11px/1.18 'Zilla Slab',serif;color:#fff;text-wrap:pretty;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.spine .meta{margin-top:auto;font:500 8.5px/1.25 'IBM Plex Mono',monospace;letter-spacing:.03em;color:rgba(255,255,255,.92);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.shelf-plank{height:9px;border-radius:2px;background:linear-gradient(#c9c1b4,#a89e8d);box-shadow:0 3px 6px rgba(0,0,0,.18);margin:0 6px}
+.shelf-plank-shadow{height:5px;margin:0 15px;border-radius:0 0 3px 3px;background:#8f8676}
+
+.list{padding:0 16px 20px;display:flex;flex-direction:column;gap:8px}
+.card{display:flex;align-items:center;gap:11px;padding:11px 12px;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;cursor:pointer;text-align:left}
+.thumb{width:40px;height:52px;border-radius:4px;flex:none;background-size:cover;background-position:center}
+.card .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.card .title{font:600 14px/1.2 'Zilla Slab',serif;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .sub{font:400 11px/1.3 'IBM Plex Sans',sans-serif;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .end{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}
+.badge{font:500 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.02em;padding:5px 7px;border-radius:6px;white-space:nowrap}
+.badge.good{background:var(--good-bg);color:var(--good)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.bad{background:var(--bad-bg);color:var(--bad)}
+.badge.neutral{background:var(--neutral-bg);color:var(--ink-dim)}
+.wert{font:600 12px/1 'IBM Plex Mono',monospace;color:var(--ink)}
+.empty{padding:40px 24px;text-align:center;font:400 13px/1.6 'IBM Plex Sans',sans-serif;color:var(--ink-dim)}
+
+.searchbar{display:flex;align-items:center;gap:9px;background:var(--shelf-raised);border:1px solid var(--shelf-line);border-radius:11px;padding:11px 13px}
+.searchbar input{flex:1;background:transparent;border:0;outline:0;color:var(--shelf-ink);font:400 15px 'IBM Plex Sans',sans-serif}
+.searchbar input::placeholder{color:var(--shelf-ink-dim)}
+.searchbar .ico{font:400 14px 'IBM Plex Mono',monospace;color:var(--shelf-ink-dim)}
+.chiprow{display:flex;gap:7px;margin-top:11px;overflow-x:auto;padding-bottom:2px}
+.filterchip{flex:none;font:500 11px/1 'IBM Plex Sans',sans-serif;padding:8px 12px;border-radius:20px;border:1px solid var(--shelf-line);background:var(--shelf-raised);color:var(--shelf-ink-dim);cursor:pointer;white-space:nowrap}
+.filterchip.active{background:var(--brass-bright);border-color:var(--brass-bright);color:#1c1a16}
+.resultcount{padding:12px 16px 6px;font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:var(--ink-dim);text-transform:uppercase}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;background:transparent;pointer-events:none;padding:0 0 calc(10px + env(safe-area-inset-bottom))}
+.tabbar-inner{pointer-events:auto;max-width:480px;width:calc(100% - 24px);margin:0 12px;display:flex;background:var(--shelf);border:1px solid var(--shelf-line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 4px 9px;cursor:pointer;color:var(--shelf-ink-dim);background:none;border:0}
+.tab.active{color:var(--brass-bright)}
+.tab .ic{font:400 18px/1 'IBM Plex Mono',monospace}
+.tab .lb{font:500 9.5px/1 'IBM Plex Sans',sans-serif;letter-spacing:.02em}
+
+.detail-hero{padding:20px 16px 24px;background:var(--paper-raised)}
+.detail-top{display:flex;gap:16px;align-items:flex-start}
+.cover{width:88px;height:118px;border-radius:6px;flex:none;position:relative;overflow:hidden;box-shadow:0 6px 16px -6px rgba(0,0,0,.4);background-size:cover;background-position:center}
+.cover .inner{position:absolute;inset:0;padding:12px 10px;display:flex;flex-direction:column;gap:7px}
+.cover .inner.shade{background:linear-gradient(rgba(0,0,0,.05),rgba(0,0,0,.55) 70%)}
+.cover .stripe{height:3px;border-radius:2px;background:rgba(255,255,255,.85);width:50%}
+.cover .name{font:600 13px/1.15 'Zilla Slab',serif;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.cover .pub{margin-top:auto;font:500 8.5px/1.2 'IBM Plex Mono',monospace;color:rgba(255,255,255,.92);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.detail-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.detail-meta h2{font:600 20px/1.14 'Zilla Slab',serif;color:var(--ink)}
+.detail-line{font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:var(--ink-dim)}
+.badges{display:flex;gap:6px;flex-wrap:wrap}
+.valuebox{margin-top:18px;background:var(--shelf);border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
+.valuebox .lb{font:500 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:var(--shelf-ink-dim);text-transform:uppercase}
+.valuebox .v{font:600 24px/1 'Zilla Slab',serif;color:var(--brass-bright)}
+.rows{margin-top:18px;display:flex;flex-direction:column;gap:1px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.row{display:flex;justify-content:space-between;gap:14px;padding:11px 13px;background:var(--paper-raised)}
+.row .k{font:400 12px/1.3 'IBM Plex Sans',sans-serif;color:var(--ink-dim)}
+.row .v{font:500 12px/1.3 'IBM Plex Sans',sans-serif;color:var(--ink);text-align:right}
+.pcnote{margin-top:16px;padding:12px 14px;border-radius:10px;background:var(--neutral-bg);font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:var(--ink-dim)}
+.actions{margin-top:20px;display:flex;gap:10px}
+.btn{flex:1;text-align:center;padding:14px;border-radius:11px;font:500 14px/1 'IBM Plex Sans',sans-serif;cursor:pointer;border:1px solid transparent}
+.btn.primary{background:var(--shelf);color:var(--shelf-ink)}
+.btn.ghost{background:var(--paper-raised);border-color:var(--line);color:var(--ink)}
+.btn.danger{background:var(--bad-bg);color:var(--bad)}
+.btn.full{width:100%}
+.btn:disabled{opacity:.5;cursor:default}
+
+.form{padding:18px 16px 28px;display:flex;flex-direction:column;gap:18px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field .lb{font:500 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:var(--ink-dim);text-transform:uppercase}
+.field input[type=text],.field input[type=number],.field input[type=url],.field input[type=password],.field select,.field textarea{border:1px solid var(--line);background:var(--paper-raised);border-radius:9px;padding:11px 12px;font:400 15px 'IBM Plex Sans',sans-serif;color:var(--ink);width:100%}
+.field textarea{resize:vertical;min-height:56px}
+.pillrow{display:flex;gap:7px;flex-wrap:wrap}
+.pill{font:500 12px/1 'IBM Plex Sans',sans-serif;padding:9px 13px;border-radius:9px;border:1px solid var(--line);background:var(--paper-raised);color:var(--ink);cursor:pointer}
+.pill.active{background:var(--shelf);border-color:var(--shelf);color:var(--shelf-ink)}
+.checkline{display:flex;align-items:center;gap:9px;cursor:pointer}
+.checkline input{width:18px;height:18px}
+
+.menu{padding:0 16px;display:flex;flex-direction:column;gap:1px;border-radius:12px;overflow:hidden;margin:0 0 20px}
+.menu-item{display:flex;justify-content:space-between;align-items:center;padding:15px 15px;background:var(--paper-raised);border:1px solid var(--line);margin-top:-1px;cursor:pointer}
+.menu-item .t{font:500 14px/1.3 'IBM Plex Sans',sans-serif;color:var(--ink)}
+.menu-item .s{font:400 11.5px/1.3 'IBM Plex Sans',sans-serif;color:var(--ink-dim);margin-top:2px}
+.menu-item .arrow{font:400 15px 'IBM Plex Mono',monospace;color:var(--ink-dim)}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px}
+.stat-tile{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:14px 15px}
+.stat-tile .lb{font:500 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;color:var(--ink-dim);text-transform:uppercase}
+.stat-tile .v{margin-top:6px;font:600 22px/1 'Zilla Slab',serif;color:var(--ink)}
+.stat-tile .v.accent{color:var(--brass-bright)}
+.bars{padding:4px 16px 20px;display:flex;flex-direction:column;gap:10px}
+.barline{display:flex;align-items:center;gap:10px}
+.barline .lb{width:118px;flex:none;font:400 12px/1.3 'IBM Plex Sans',sans-serif;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barline .track{flex:1;height:10px;border-radius:5px;background:var(--neutral-bg);overflow:hidden}
+.barline .fill{height:100%;border-radius:5px;background:var(--brass-bright)}
+.barline .n{width:30px;flex:none;text-align:right;font:500 11px/1 'IBM Plex Mono',monospace;color:var(--ink-dim)}
+
+.sync-body{padding:18px 16px 28px;display:flex;flex-direction:column;gap:18px}
+.sync-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:18px}
+.sync-card h3{font:600 15px/1.3 'Zilla Slab',serif;color:var(--ink);margin-bottom:6px}
+.sync-card p{margin:0;font:400 12.5px/1.6 'IBM Plex Sans',sans-serif;color:var(--ink-dim)}
+.sync-meta{margin-top:12px;font:400 11px/1.5 'IBM Plex Mono',monospace;color:var(--ink-dim)}
+.sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+.sync-dot.ok{background:var(--good)}
+.sync-dot.bad{background:var(--bad)}
+.sync-dot.off{background:var(--ink-dim)}
+.filepick{display:none}
+
+.scanwrap{position:relative;aspect-ratio:4/3;max-height:320px;border-radius:14px;overflow:hidden;background:#000}
+.scanwrap video{width:100%;height:100%;object-fit:cover}
+.scanwrap .frame{position:absolute;inset:18%;border:2px solid var(--brass-bright);border-radius:8px;pointer-events:none}
+
+.toast{position:fixed;left:16px;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));background:var(--shelf);color:var(--shelf-ink);border:1px solid var(--shelf-line);border-radius:12px;padding:13px 16px;font:400 13px/1.4 'IBM Plex Sans',sans-serif;box-shadow:var(--shadow);z-index:50;max-width:448px;margin:0 auto;text-align:center}
+.confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:60}
+.confirm-sheet{width:100%;max-width:480px;background:var(--paper);border-radius:18px 18px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom));max-height:82vh;overflow-y:auto}
+.confirm-sheet h3{font:600 17px/1.3 'Zilla Slab',serif;margin-bottom:8px}
+.confirm-sheet p{font:400 13px/1.6 'IBM Plex Sans',sans-serif;color:var(--ink-dim);margin:0 0 18px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:currentColor;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div id="toastHost"></div>
+
+<script>
+(function(){
+"use strict";
+
+var SEED_GAMES = [{"name":"A-10 Tank Killer","sprache":"Deutsch","medium":"5,25 + 3,5 Disk","zustand":"Sehr Gut","inhalt":"Karte","vollstaendig":"Ja","publisher":"Sierra On-Line / Dynamix","jahr":"1989","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"Simulation","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\A10\\PS.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"A-10 Tank Killer 2: Silent Thunder","sprache":"DE + EN","medium":"CD-ROM","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"Sierra On-Line","jahr":"1996","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"Simulation","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Aces of the Pacific","sprache":"Fehler/Keine Daten","medium":"3,5 Disk","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"Sierra On-Line","jahr":"1992","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"Simulation","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Aces of the Pacific WWII:1946","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Dynamix","jahr":"1993","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Aces over Europe","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Sierra On-Line","jahr":"1993","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"Simulation","exePath":"","useDosBox":"Nein","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Age of Empires","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"Microsoft","jahr":"1997","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Age of Empires II The Age of Kings","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"1999","entwickler":"Microsoft","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"AH-64D Longbow","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Alien Trilogy","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Acclaim","jahr":"1996","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Alien vs. Predator","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Fox","jahr":"1999","entwickler":"Rebellion","plattform":"PC","coverBase64":"","coverExt":"","wert":"70","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Alien vs. Predator 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"SEGA","jahr":"2010","entwickler":"SEGA / Rebellion","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Anno 1602","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Sunflowers","jahr":"1998","entwickler":"Max Design","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Apache Longbow","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Digital Integration","jahr":"1995","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Apache vs. Havoc","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Empire","jahr":"1998","entwickler":"Razorworks","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Aquanox","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Fishtank","jahr":"2001","entwickler":"Massive","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"ATF","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Jane's","jahr":"1996","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"B17 Flying Fortress","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"Microprose","jahr":"1992","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Baldurs Gate","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Interplay","jahr":"1998","entwickler":"BioWare","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Baldurs Gate II: Schatten von Amn","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"Interplay","jahr":"2000","entwickler":"BioWare","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Battlezone","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Activision","jahr":"1998","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Battlezone II","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"1999","entwickler":"Pandemic","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Blade Runner","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"1997","entwickler":"Westwood","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Bleifuss 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Virgin","jahr":"1996","entwickler":"Milestone","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Bleifuss Rally","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Virgin","jahr":"1997","entwickler":"Milestone","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Blood","sprache":"DE + EN","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"GT Interactive","jahr":"1997","entwickler":"Monolith","plattform":"PC","coverBase64":"","coverExt":"","wert":"250","genre":"Shooter","exePath":"","useDosBox":"Nein","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Carrier Strike Fighter","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"Interactive Magic","jahr":"1998","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Civilization II","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Microprose","jahr":"1996","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Civilization II Szenarios","sprache":"Deutsch","medium":"3,5 Floppy","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Microprose","jahr":"1996","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Command & Conquer Alarmstufe Rot","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Westwood","jahr":"1996","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Command & Conquer Tiberian Sun","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Westwood","jahr":"1999","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Command & Conquer: Der Tiberiumkonflikt","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Westwood","jahr":"1995","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Commandos: Hinter feindlichen Linien","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Eidos","jahr":"1998","entwickler":"Pyro","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Constructor","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"1997","entwickler":"System 3","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Crusader No Remorse","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"Origin","jahr":"1995","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Daikatana","sprache":"Deutsch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"ION Storm","jahr":"2000","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Dark Project","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"651 GAMES","jahr":"2017","entwickler":"651 GAMES","plattform":"PC","coverBase64":"","coverExt":"","wert":"70","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Dark Project 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Eidos Interactive","jahr":"1998","entwickler":"Looking Glass Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Dark Reign","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"2022","entwickler":"Adeptus7","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Day of the Tentacle","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1993","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\DOTT\\TENTACLE.EXE","useDosBox":"Nein","dosBoxConfig":"","useScummVM":"Ja","scummVMPath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\DOTT"},{"name":"Deus Ex","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"ION Storm","jahr":"2000","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Diablo","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1996","entwickler":"Blizzard North","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Diablo 2","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Blizzard Entertainment","jahr":"2000","entwickler":"Blizzard North","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Diablo 2 Lord of Destruction","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Blizzard Entertainment","jahr":"2001","entwickler":"Blizzard North","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Discworld II","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Psygnosis / SCE Studio Liverpool","jahr":"1995","entwickler":"Teeny Weeny Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"75","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Doom 3","sprache":"Fehler/Keine Daten","medium":"DVD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Bethesda Softworks ","jahr":"2004","entwickler":"id Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Doom II","sprache":"Englisch","medium":"CD-ROM","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"GT Interactive Software","jahr":"1994","entwickler":"id Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"75","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\DOOM2\\DOOM2.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Duke Nukem 3D","sprache":"Englisch","medium":"CD-ROM","zustand":"Gut","inhalt":"","vollstaendig":"Nein","publisher":"GT Interactive Software","jahr":"1996","entwickler":"3D Realms","plattform":"PC","coverBase64":"","coverExt":"","wert":"55","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\DUKE3D\\SETUP.EXE","useDosBox":"Ja","dosBoxConfig":"W2Rvc2JveF0NCm1lbXNpemU9MTYNCltzZGxdDQpmdWxsc2NyZWVuPXRydWUNCg==","useScummVM":"","scummVMPath":""},{"name":"Dungeon Keeper","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Bullfrog","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Earthsiege","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra On-Line","jahr":"1994","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Earthsiege 2","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra On-Line","jahr":"1996","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"European Air War","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Microprose","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"F-15","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Jane's","jahr":"1998","entwickler":"Jane's","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"F-15 Strike Eagle III","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Microprose","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Falcon 3.0","sprache":"DE + EN","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sphere","jahr":"1991","entwickler":"Spectrum Holobyte","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Fallout","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"100","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Fatal Racing","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions","jahr":"1995","entwickler":"Gremlin Interactive","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Fleet Defender","sprache":"DE + EN","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Microprose","jahr":"1994","entwickler":"Microprose","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Fleet Defender Gold","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Microprose","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Flight Simulator 98","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Microsoft Studios","jahr":"1998","entwickler":"Microsoft Game Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Flottenmanöver","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Floyd: Es gibt noch Helden","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Adventuresoft","jahr":"1997","entwickler":"Adventuresoft","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Flugsimulator für Airbus A320","sprache":"","medium":"","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Tandem Verlag","jahr":"","entwickler":"Tandem Verlag","plattform":"PC","coverBase64":"","coverExt":"","wert":"5","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Flying Corps","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Frontier: Elite II","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Gold Rush!","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"Neu","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Grim Fandango","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"GTA 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"80","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"GTA San Andreas Small Box","sprache":"Fehler/Keine Daten","medium":"DVD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Capcom / Rockstar Games / 1C-SoftClub","jahr":"2004","entwickler":"Rockstar North / War Drum Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Gunman Chronicles","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Gunship 2000","sprache":"Fehler/Keine Daten","medium":"5,25 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"MicroProse","jahr":"1986","entwickler":"MicroProse Software / MPS Labs","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Gunship!","sprache":"Englisch","medium":"5,25 Disk","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"MicroProse","jahr":"1986","entwickler":"MicroProse Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Half-Life","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Valve / Sierra Entertainment","jahr":"1998","entwickler":"Valve Software / Gearbox Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"70","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Have a N.I.C.E. Day!","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Heart of Darkness","sprache":"DE + EN","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions / Infogrames / Infogrames Entertainment / Infogrames Multimedia","jahr":"1998","entwickler":"Amazing Studio","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Heretic","sprache":"Englisch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"id Software","jahr":"1994","entwickler":"id Software / Raven Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\HERETIC\\HERETIC.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Heretic II","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Activision Blizzard / Activison / MacPlay","jahr":"1998","entwickler":"Raven Software / Hyperion Entertainment / Contraband Entertainment / MacPlay / Loki Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Heroes of Might and Magic III","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Ubisoft Entertainment","jahr":"2000","entwickler":"New World Computing","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Hexen","sprache":"Englisch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"2021","entwickler":"EmileSternerJonsson","plattform":"PC","coverBase64":"","coverExt":"","wert":"90","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\HEXEN\\HEXEN.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Hexen II","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Activision Blizzard / id Software","jahr":"1997","entwickler":"Raven Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Holiday Island","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"1997","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"iF 22","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interactive Magic","jahr":"1998","entwickler":"I-Magic Labs","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"IL2 Sturmovik","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"1C Company","jahr":"2006","entwickler":"1C: Maddox Games / 1C:Maddox Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Incubation","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Blue Byte Software","jahr":"1998","entwickler":"Blue Byte","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Indiana Jones and the fate of Atlantis","sprache":"Deutsch","medium":"3,5 Floppy","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"Disney Interactive / LucasArts Entertainment","jahr":"1992","entwickler":"LucasArts Entertainment / Lucasfilm","plattform":"PC","coverBase64":"","coverExt":"","wert":"100","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\IJONES3\\INDY3.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Jagged Alliance 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Strategy First","jahr":"1999","entwickler":"Strategy First / Sir-Tech Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Kingpin - Life of Crime","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions","jahr":"1999","entwickler":"Xatrix Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"80","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Kings Quest V","sprache":"Fehler/Keine Daten","medium":"3,5 + 5,25","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Konami / Sierra Entertainment / Sierra On-Line","jahr":"1990","entwickler":"Sierra Entertainment / Sierra On-Line","plattform":"PC","coverBase64":"","coverExt":"","wert":"80","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Kings Quest VII","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra Entertainment","jahr":"2015","entwickler":"The Odd Gentlemen","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"KISS: Psycho Circus","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Take Two Interactive / Gathering of Developers / Take 2 Interactive","jahr":"2000","entwickler":"Third Law Interactive / Tremor Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"KKND","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1998","entwickler":"Beam Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Klingon Honor Guard","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"MicroProse","jahr":"1998","entwickler":"MicroProse Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Korea F/18","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Graphic Simulations","jahr":"1997","entwickler":"Graphic Simulations","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Leisure Suit Larry The Land of the Lounge Lizards","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra On-Line / Assemble Entertainment","jahr":"1987","entwickler":"Assemble Entertainment / Sierra On-Line","plattform":"PC","coverBase64":"","coverExt":"","wert":"100","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Leisure Suit Larry Wet Dreams dont Dry","sprache":"Deutsch","medium":"CD-ROM","zustand":"Neu (eingeschweißt)","inhalt":"","vollstaendig":"","publisher":"Assemble Entertainment","jahr":"2018","entwickler":"Assemble Entertainment / CrazyBunch","plattform":"","coverBase64":"","coverExt":"","wert":"99","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Lemmings","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\LEMMINGS\\VGALEMMI.EXE","useDosBox":"Ja","dosBoxConfig":"W2NwdV0NCmN5Y2xlcz0zMDAwDQpbZG9zYm94XQ0KbWVtc2l6ZT0xNg0KW3NkbF0NCmZ1bGxzY3JlZW49dHJ1ZQ0K","useScummVM":"","scummVMPath":""},{"name":"Longbow 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1997","entwickler":"Origin Systems / Jane's Combat Simulations","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Longbow Flashpoint Korea","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"45","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Loom","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"175","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"M1 Tank Platoon 2","sprache":"Englisch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions / MicroProse","jahr":"1998","entwickler":"MicroProse Software / Digital Theory","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Mac OS X","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"","publisher":"","jahr":"","entwickler":"","plattform":"","coverBase64":"","coverExt":"","wert":"","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Mars 3D","sprache":"DE + EN","medium":"CD-ROM","zustand":"Neu","inhalt":"","vollstaendig":"Ja","publisher":"PlayWay / Pyramid Games","jahr":"2020","entwickler":"Pyramid Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"MDK","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions / Playmates Interactive Entertainment / Shiny Entertainment","jahr":"1997","entwickler":"Shiny Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Mech Commander","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"2019","entwickler":"Gracaeus","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"Strategie","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Mechwarrior 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Activision Blizzard","jahr":"1996","entwickler":"Activision","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Mechwarrior 3","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Hasbro Interactive","jahr":"1999","entwickler":"Zipper Interactive / FASA Interactive","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Mechwarrior 4","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Microsoft Studios","jahr":"2002","entwickler":"Cyberlore Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Monkey Island 1","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"110","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Monkey Island 2","sprache":"Deutsch","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1991","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"130","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\MONKEY2\\MONKEY2.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Monkey Island 2","sprache":"Englisch","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1991","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"130","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Moto Racer","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1997","entwickler":"Delphine Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Motocross Madness","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Microsoft Studios","jahr":"1998","entwickler":"Rainbow Studios / Bongfish","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"N.I.C.E. 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"UniqueGames Publishing","jahr":"2000","entwickler":"Synetic","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Need for Speed 1","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1994","entwickler":"Ghost Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Need for Speed 2 Special Edition","sprache":"Englisch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1997","entwickler":"Electronic Arts Canada / Electronic Arts Seattle / Pioneer Productions","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Need for Speed III Hot Pursuit","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1998","entwickler":"Electronic Arts Canada / Electronic Arts Seattle","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Need for Speed Porsche","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"2000","entwickler":"Electronic Arts Canada","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Neverwinter Nights","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Atari / Overhaul Games","jahr":"2002","entwickler":"BioWare / Overhaul Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Nocturne","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Take Two Interactive / Gathering of Developers","jahr":"1999","entwickler":"Terminal Reality","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"NOX","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Oh no, more Lemmings!","sprache":"Englisch","medium":"5,25+3,5 Disk","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Psygnosis","jahr":"1991","entwickler":"DMA Design","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Operation Flashpoint","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"2001","entwickler":"Codemasters","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Outcast","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Infogrames","jahr":"1999","entwickler":"Appeal","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Outlaws","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts","jahr":"1997","entwickler":"LucasArts","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Pacific Strike","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1994","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Pinball Fantasies","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"21st Century Entertainment / Cowboy Rodeo Oy","jahr":"1992","entwickler":"Digital Illusions / Cowboy Rodeo","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Pirates! Gold","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"MicroProse","jahr":"1993","entwickler":"MPS Labs","plattform":"PC","coverBase64":"","coverExt":"","wert":"70","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Police Quest SWAT","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra OnLine","jahr":"1995","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Port Royale","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Kalypso Media","jahr":"2003","entwickler":"ASCARON Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Privateer II: The Darkening","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1996","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Quake","sprache":"Englisch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"GT Interactive Software","jahr":"1996","entwickler":"id Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Quake 2","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":" id Software","jahr":"1997","entwickler":"id Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Railroad Tycoon 3","sprache":"","medium":"","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"2K Games","jahr":"2003","entwickler":"PopTop","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Realms of the Haunting","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Kiss / Funbox Media / Blue Moon Red Owl","jahr":"1996","entwickler":"Gremlin Interactive","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Red Baron","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra Entertainment / Sierra Online","jahr":"1990","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"45","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\REDBARON\\RB.EXE","useDosBox":"Ja","dosBoxConfig":"W2NwdV0NCmN5Y2xlcz1maXhlZCA1NTAwDQpbZG9zYm94XQ0KbWVtc2l6ZT0xNg0KW3NkbF0NCmZ1bGxzY3JlZW49dHJ1ZQ0KZnVsbHJlc29sdXRpb249NjQweDQ4MA0Kb3V0cHV0PWRkcmF3DQpbcmVuZGVyXQ0KYXNwZWN0PXRydWUNCnNjYWxlcj1ub25lDQpbZG9zXQ0KZW1zPWZhbHNlDQo=","useScummVM":"","scummVMPath":""},{"name":"Red Baron 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra On-Line","jahr":"1997","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Red Baron Missions Baukasten","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Dynamix","jahr":"1992","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Requiem Avenging Angel","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Retroism / Prism Entertainment","jahr":"1999","entwickler":"Cyclone Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Resident Evil","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Capcom","jahr":"1996","entwickler":"Capcom","plattform":"PC","coverBase64":"","coverExt":"","wert":"150","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Rise of the Robots","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Atari / Time Warner Interactive","jahr":"1994","entwickler":"Mirage Technologies / Mirage / Instinct Design","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Rise of the Robots 2: Resurrection","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Acclaim Entertainment","jahr":"1996","entwickler":"Mirage / Mirage Media","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Rise of the Triad Dark War","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"3D Realms","jahr":"1994","entwickler":"Apogee Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"100","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Roller Coaster Tycoon 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Hasbro Interactive","jahr":"1999","entwickler":"Chris Sawyer","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Runaway A Road Adventure","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Focus Home Interactive / Numeric Pipeline","jahr":"2001","entwickler":"Pendulo Studios / Numeric Pipeline","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Sacrifice","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Schleichfahrt","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"BlueByte","jahr":"1996","entwickler":"Massive","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Secret Weapons of the Luftwaffe","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1991","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\SWOTL\\SWOTL.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Shadow Caster","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Shadow Man","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Nightdive Studios","jahr":"1999","entwickler":"Acclaim Studios Teesside ","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Shadow Warrior","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"3D Realms","jahr":"1997","entwickler":"3D Realms","plattform":"PC","coverBase64":"","coverExt":"","wert":"150","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Siege","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"MIndcraft","jahr":"1992","entwickler":"MIndcraft","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Silent Hunter","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Strategic Simulations / SSI","jahr":"1996","entwickler":"Aeon Electronic Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Silent Hunter 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Ubisoft Entertainment / SSI","jahr":"2001","entwickler":"Ultimation","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Soldier of Fortune","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Activision Blizzard","jahr":"2000","entwickler":"Raven Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Space Hulk / System Shock","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Origin","jahr":"1994","entwickler":"Looking Glass Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Space Quest III","sprache":"Fehler/Keine Daten","medium":"3,5 + 5,25","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra Entertainment / Sierra On-Line","jahr":"1989","entwickler":"Sierra Entertainment / Sierra On-Line","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Space Quest IV","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Sierra Entertainment / Sierra On-Line","jahr":"1991","entwickler":"Sierra Entertainment / Sierra On-Line","plattform":"PC","coverBase64":"","coverExt":"","wert":"80","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"STALKER 2: Heart of Chernobyl","sprache":"Deutsch","medium":"Digital","zustand":"Neu","inhalt":"","vollstaendig":"Ja","publisher":"SEGA / GSC Game World / 4Divinity","jahr":"2024","entwickler":"GSC Game World","plattform":"","coverBase64":"","coverExt":"","wert":"79","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"STALKER: Shadow of Chernobyl Collectors Edition","sprache":"Fehler/Keine Daten","medium":"DVD-ROM","zustand":"Neuwertig","inhalt":"","vollstaendig":"Ja","publisher":"GSC Game World","jahr":"2007","entwickler":"GSC Game World","plattform":"","coverBase64":"","coverExt":"","wert":"100","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Trek 25th Anniversary","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions / Ultra Games / Ultra","jahr":"1991","entwickler":"Visual Concepts / Interplay Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\STARTREK\\STARTREK.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Trek Judgement Rites","sprache":"Fehler/Keine Daten","medium":"3,5 Disk","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions","jahr":"1993","entwickler":"Interplay Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Trek Starfleet Academy","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions","jahr":"1997","entwickler":"Interplay Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Trek Voyager Elite Force","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Activision Blizzard / Activision Value Publishing","jahr":"2000","entwickler":"Raven Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Battlefront II","sprache":"","medium":"","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"2017","entwickler":"Electronic Arts DICE","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Dark Forces","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1995","entwickler":" LucasArts Entertainment ","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Force Commander","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"2000","entwickler":"Ronin Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Jedi Knight","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1997","entwickler":"Lucasfilm","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Jedi Knight Mysteries of the Sith","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1998","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Rebel Assault","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1993","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\REBEL\\REB.BAT","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Rebel Assault 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1995","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Tie Fighter","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1994","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars Trilogy CD-ROM","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1994","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars X-Wing","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1993","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars X-Wing Alliance","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1999","entwickler":"Totally Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Star Wars X-Wing vs. Tie Fighter","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Disney Interactive","jahr":"1997","entwickler":"Lucasfilm","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Starlancer","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Ubisoft Entertainment / Microsoft Studios / Crave Entertainment / '''Dreamcast'''","jahr":"2000","entwickler":"Digital Anvil / Warthog","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Stellar 7","sprache":"Fehler/Keine Daten","medium":"3,5 + 5,25","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Dynamix","jahr":"1990","entwickler":"Dynamix","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Stormovik","sprache":"Fehler/Keine Daten","medium":"5,25 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1990","entwickler":"Electronic Arts","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Sub Culture","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Ubisoft Entertainment","jahr":"1997","entwickler":"Criterion Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Syndicate Wars","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1996","entwickler":"Bullfrog Productions","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"System Shock","sprache":"DE + EN","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Origin","jahr":"1994","entwickler":"Looking Glass","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\SHOCK\\SHOCK.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"System Shock 2","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1999","entwickler":"Looking Glass Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Teenage Mutant Ninja Turtles","sprache":"Fehler/Keine Daten","medium":"5,25 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Ubisoft Entertainment / Konami / U.S. Gold / Ultra Games / Image Works / Palcom","jahr":"1989","entwickler":"Konami Digital Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Terminal Velocity","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"3D Realms","jahr":"1995","entwickler":"Terminal Reality","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Terminator 2029","sprache":"Fehler/Keine Daten","medium":"5,25 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Reef Entertainment","jahr":"2019","entwickler":"Teyon","plattform":"PC","coverBase64":"","coverExt":"","wert":"100","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Terminator Rampage","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Bethesda Softworks","jahr":"1993","entwickler":"Bethesda Softworks","plattform":"PC","coverBase64":"","coverExt":"","wert":"60","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Terminator: Future Shock","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Bethesda Softworks","jahr":"1996","entwickler":"Bethesda Softworks","plattform":"PC","coverBase64":"","coverExt":"","wert":"50","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\SHOCK\\INSTALL.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"TFX","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Ocean Software","jahr":"1993","entwickler":"Digital Image Design","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"The Depths of Doom Trilogy","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"150","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"The DIG","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts Entertainment","jahr":"1995","entwickler":"LucasArts Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"45","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"The Hidden Below","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"The Ultimate Doom","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"GT Interactive Software","jahr":"1995","entwickler":"id Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"120","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"The X-Files","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"SCEE / Fox Interactive","jahr":"1998","entwickler":"HyperBole Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Their Finest Hour The Battle of Britain","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Lucasfilm Games","jahr":"1989","entwickler":"Lucasfilm","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Theme Hospital","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1997","entwickler":" Bullfrog Productions","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Tomb Raider II","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Square Enix / Aspyr / Eidos Interactive / Victor Interactive Software","jahr":"1997","entwickler":"Square Enix / Aspyr Media / Sony Interactive Entertainment / Core Design / Westlake Interactive / MacSoft Games","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"ToonStruck","sprache":"Deutsch","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Interplay Productions","jahr":"1996","entwickler":"Burst","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\TOON\\SETUP.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Top Gun Fire at will","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"MicroProse","jahr":"1996","entwickler":"Spectrum Holobyte","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Tornado","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Spectrum Holobyte","jahr":"1993","entwickler":"Digital Integration","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"Nein","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Total Annihilation","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Wargaming","jahr":"1997","entwickler":"Cavedog Entertainment","plattform":"PC","coverBase64":"","coverExt":"","wert":"10","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Trespasser","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"1998","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"100","genre":"","exePath":"","useDosBox":"Nein","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Ultima IX","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1999","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Ultima Underworld","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts / Origin Systems","jahr":"1992","entwickler":"Infinity / FloodGate Entertainment / INFINITY Co / Zio / Blue Sky Productions","plattform":"PC","coverBase64":"","coverExt":"","wert":"120","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Ultima Underworld 2","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts / Origin Systems","jahr":"1993","entwickler":"Looking Glass Studios / Infinity / INFINITY Co","plattform":"PC","coverBase64":"","coverExt":"","wert":"80","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Ultima VII The Black Gate","sprache":"Fehler/Keine Daten","medium":"5,25 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts / Origin Systems / Pony Canyon / Fujisankei Communications International","jahr":"1992","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"70","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Unreal","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"GT Interactive Software","jahr":"1998","entwickler":"Epic MegaGames","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Unreal Tournament","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"GT Interactive Software","jahr":"1999","entwickler":"Epic MegaGames","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"USNF Gold","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Vollgas Full Throttle","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"LucasArts","jahr":"1995","entwickler":"LucasArts","plattform":"PC","coverBase64":"","coverExt":"","wert":"35","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Warcraft III","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Blizzard Entertainment","jahr":"2002","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Windows 2000","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"","publisher":"","jahr":"","entwickler":"","plattform":"","coverBase64":"","coverExt":"","wert":"","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Windows NT","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"","publisher":"","jahr":"","entwickler":"","plattform":"","coverBase64":"","coverExt":"","wert":"","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Wing Commander","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Origin Systems","jahr":"1990","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Wing Commander 2","sprache":"Fehler/Keine Daten","medium":"3,5 Floppy","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1993","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Wing Commander 3","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts / Origin Systems","jahr":"1994","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"30","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Wing Commander 4","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1995","entwickler":"Sony Interactive Entertainment / Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Wing Commander 5 Prophecy","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts / Destination Software","jahr":"1997","entwickler":"Origin Systems / Raylight Studios","plattform":"PC","coverBase64":"","coverExt":"","wert":"25","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Wing Commander Privateer","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1993","entwickler":"Origin Systems","plattform":"PC","coverBase64":"","coverExt":"","wert":"20","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Witchaven","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"","jahr":"","entwickler":"","plattform":"PC","coverBase64":"","coverExt":"","wert":"40","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"Wolfenstein 3D Spear of Destiny","sprache":"Englisch","medium":"3,5 Disk","zustand":"Sehr Gut","inhalt":"","vollstaendig":"Ja","publisher":"id Software","jahr":"1993","entwickler":"id Software","plattform":"PC","coverBase64":"","coverExt":"","wert":"500","genre":"","exePath":"C:\\Users\\chris\\Desktop\\Neuer Ordner\\WOLF3D\\WOLF3D.EXE","useDosBox":"Ja","dosBoxConfig":"","useScummVM":"","scummVMPath":""},{"name":"WWII Fighters","sprache":"Fehler/Keine Daten","medium":"CD-ROM","zustand":"","inhalt":"","vollstaendig":"Ja","publisher":"Electronic Arts","jahr":"1998","entwickler":"Jane's Combat Simulations","plattform":"PC","coverBase64":"","coverExt":"","wert":"15","genre":"","exePath":"","useDosBox":"","dosBoxConfig":"","useScummVM":"","scummVMPath":""}];
+var CSV_HEADER = "Name|Sprache|Medium|Zustand|Inhalt|Vollständig|Publisher|Jahr|Entwickler|Plattform|CoverBase64|CoverExt|Wert|Genre|ExePath|UseDosBox|DosBoxConfig|UseScummVM|ScummVMPath";
+var CSV_KEYS = ["name","sprache","medium","zustand","inhalt","vollstaendig","publisher","jahr","entwickler","plattform","coverBase64","coverExt","wert","genre","exePath","useDosBox","dosBoxConfig","useScummVM","scummVMPath"];
+var STORAGE_KEY = "bigbox:games:v2";
+var META_KEY = "bigbox:meta:v2";
+var NC_KEY = "bigbox:nextcloud:v1";
+
+var RAWG_API_KEY = "e2064b227d2b4bfe859e025d1253553b";
+var IGDB_CLIENT_ID = "s0r5nobvuvpljlt3kwjh45lxhaa6zy";
+var IGDB_CLIENT_SECRET = "96ozallbtkxuczscac7xn5w2odnael";
+
+function slug(s){ return String(s||"").trim().toLowerCase(); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function parseWert(v){ var n = parseFloat(String(v||"").replace(",",".")); return isNaN(n) ? 0 : n; }
+function fmtEuro(n){ return Math.round(n).toLocaleString("de-DE") + " €"; }
+function loadMeta(){ try{ return JSON.parse(localStorage.getItem(META_KEY)) || {}; }catch(e){ return {}; } }
+function saveMeta(m){ try{ localStorage.setItem(META_KEY, JSON.stringify(m)); }catch(e){} }
+function loadNC(){ try{ return JSON.parse(localStorage.getItem(NC_KEY)) || {}; }catch(e){ return {}; } }
+function saveNC(m){ try{ localStorage.setItem(NC_KEY, JSON.stringify(m)); }catch(e){} }
+
+function loadGames(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){ var arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length) return arr; }
+  }catch(e){}
+  return SEED_GAMES.slice();
+}
+function persistGames(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.games)); }catch(e){}
+  scheduleAutoPush();
+}
+
+/* ---------------- CSV (matches Lazarus TForm1.SaveCSV/LoadCSV exactly) ---------------- */
+function parseCSV(text){
+  var lines = text.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").filter(function(l){ return l.trim() !== ""; });
+  if(!lines.length) return [];
+  var start = /^Name\|/.test(lines[0]) ? 1 : 0;
+  var out = [];
+  for(var i=start;i<lines.length;i++){
+    var parts = lines[i].split("|");
+    var g = {};
+    for(var k=0;k<CSV_KEYS.length;k++){ g[CSV_KEYS[k]] = parts[k] !== undefined ? parts[k] : ""; }
+    if(g.name.trim() === "") continue;
+    out.push(g);
+  }
+  return out;
+}
+function toCSV(games){
+  var lines = [CSV_HEADER];
+  games.forEach(function(g){
+    lines.push(CSV_KEYS.map(function(k){ return (g[k]==null?"":String(g[k])).replace(/[\r\n]/g," "); }).join("|"));
+  });
+  return lines.join("\r\n") + "\r\n";
+}
+
+function zustandClass(z){
+  z = (z||"").toLowerCase();
+  if(z.indexOf("neu") === 0) return "good";
+  if(z.indexOf("sehr gut") === 0) return "good";
+  if(z.indexOf("gut") === 0) return "warn";
+  if(z === "") return "neutral";
+  return "warn";
+}
+var GENRE_PALETTE = ["#3a6ea5","#8a4f7d","#3f7d5c","#a3641f","#5a5aa0","#9a4a4a","#3f8a8a","#7a6a3a"];
+function genreColor(genre){
+  var s = genre || "Sonstige";
+  var h = 0;
+  for(var i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; }
+  return GENRE_PALETTE[h % GENRE_PALETTE.length];
+}
+function shade(hex, amt){
+  var c = hex.replace("#","");
+  var num = parseInt(c,16);
+  var r = Math.min(255,Math.max(0,(num>>16)+amt));
+  var g = Math.min(255,Math.max(0,((num>>8)&0xff)+amt));
+  var b = Math.min(255,Math.max(0,(num&0xff)+amt));
+  return "rgb("+r+","+g+","+b+")";
+}
+function coverMime(ext){
+  ext = (ext||"").replace(".","").toLowerCase();
+  if(ext==="jpg"||ext==="jpeg") return "image/jpeg";
+  if(ext==="png") return "image/png";
+  if(ext==="webp") return "image/webp";
+  if(ext==="gif") return "image/gif";
+  return "image/jpeg";
+}
+function hasCover(g){ return !!(g && g.coverBase64); }
+function coverBgStyle(g){
+  if(hasCover(g)) return "background-image:url('data:"+coverMime(g.coverExt)+";base64,"+g.coverBase64+"')";
+  var color = genreColor(g && g.genre);
+  return "background:linear-gradient(160deg,"+color+","+shade(color,-25)+")";
+}
+
+/* ---------------- state ---------------- */
+var state = {
+  games: loadGames(),
+  view: "regal",
+  query: "",
+  filterMedium: null,
+  filterZustand: null,
+  selected: null,
+  editing: null,
+  addFlow: null,
+  toast: null,
+  confirm: null,
+  matchBusy: false,
+  matchResult: null,
+  scanBusy: false
+};
+
+function findIndex(name){ var s = slug(name); for(var i=0;i<state.games.length;i++){ if(slug(state.games[i].name)===s) return i; } return -1; }
+function totalValue(){ return state.games.reduce(function(a,g){ return a + parseWert(g.wert); }, 0); }
+
+function showToast(msg){
+  state.toast = msg;
+  render();
+  setTimeout(function(){ state.toast = null; render(); }, 2600);
+}
+function go(view, extra){
+  stopScanner();
+  state.view = view;
+  if(extra) Object.assign(state, extra);
+  window.scrollTo(0,0);
+  render();
+}
+
+/* ---------------- Nextcloud WebDAV sync ---------------- */
+var pushTimer = null;
+function scheduleAutoPush(){
+  var nc = loadNC();
+  if(!nc.url) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushToNextcloud, 1500);
+}
+function ncAuthHeader(nc){ return "Basic " + btoa(unescape(encodeURIComponent((nc.user||"")+":"+(nc.pass||"")))); }
+
+function pushToNextcloud(){
+  var nc = loadNC();
+  if(!nc.url) return Promise.resolve();
+  var csv = toCSV(state.games);
+  return fetch(nc.url, {
+    method: "PUT",
+    headers: { "Authorization": ncAuthHeader(nc), "Content-Type": "text/csv" },
+    body: csv
+  }).then(function(res){
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    var meta = loadMeta();
+    meta.lastPush = Date.now();
+    meta.lastSyncedHash = hashStr(csv);
+    meta.lastError = null;
+    saveMeta(meta);
+    if(state.view === "sync") render();
+  }).catch(function(err){
+    var meta = loadMeta();
+    meta.lastError = "Push fehlgeschlagen: " + err.message + " (evtl. CORS/Zugangsdaten prüfen)";
+    saveMeta(meta);
+    if(state.view === "sync") render();
+  });
+}
+
+function hashStr(s){
+  var h = 5381;
+  for(var i=0;i<s.length;i++){ h = ((h*33) ^ s.charCodeAt(i)) >>> 0; }
+  return h.toString(16);
+}
+
+function pullFromNextcloud(silent){
+  var nc = loadNC();
+  if(!nc.url) return Promise.resolve();
+  return fetch(nc.url, { headers: { "Authorization": ncAuthHeader(nc) }, cache: "no-store" })
+    .then(function(res){
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      return res.text();
+    })
+    .then(function(text){
+      var meta = loadMeta();
+      meta.lastPull = Date.now();
+      meta.lastError = null;
+      saveMeta(meta);
+      var remoteHash = hashStr(text);
+      if(remoteHash === meta.lastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
+      var parsed = parseCSV(text);
+      if(!parsed.length){ if(!silent) showToast("Remote-Datei leer oder unlesbar."); return; }
+      state.confirm = {
+        title: "Neue Version auf Nextcloud",
+        msg: "Die Datei auf Nextcloud unterscheidet sich (" + parsed.length + " Spiele). Übernehmen und die " + state.games.length + " Spiele hier ersetzen?",
+        okLabel: "Übernehmen",
+        onOk: function(){
+          state.games = parsed;
+          persistGamesNoPush();
+          var m = loadMeta(); m.lastSyncedHash = remoteHash; saveMeta(m);
+          go("regal");
+          showToast("Von Nextcloud übernommen: " + parsed.length + " Spiele.");
+        }
+      };
+      render();
+    })
+    .catch(function(err){
+      var meta = loadMeta();
+      meta.lastError = "Abruf fehlgeschlagen: " + err.message + " (evtl. CORS/Zugangsdaten prüfen)";
+      saveMeta(meta);
+      if(!silent) showToast(meta.lastError);
+      if(state.view === "sync") render();
+    });
+}
+function persistGamesNoPush(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.games)); }catch(e){}
+}
+
+/* ---------------- RAWG / IGDB (mirrors RawgApi.pas / IgdbApi.pas) ---------------- */
+function rawgFetchGameData(name){
+  var searchUrl = "https://api.rawg.io/api/games?key=" + RAWG_API_KEY + "&search=" + encodeURIComponent(name) + "&page_size=1";
+  return fetch(searchUrl).then(function(r){ if(!r.ok) throw new Error("RAWG Suche: HTTP "+r.status); return r.json(); })
+    .then(function(data){
+      var hit = data.results && data.results[0];
+      if(!hit) throw new Error("Kein Treffer bei RAWG.");
+      var detailUrl = "https://api.rawg.io/api/games/" + hit.id + "?key=" + RAWG_API_KEY;
+      return fetch(detailUrl).then(function(r){ if(!r.ok) throw new Error("RAWG Details: HTTP "+r.status); return r.json(); });
+    })
+    .then(function(d){
+      return {
+        jahr: d.released ? String(d.released).slice(0,4) : "",
+        entwickler: (d.developers||[]).map(function(x){return x.name;}).join(" / "),
+        publisher: (d.publishers||[]).map(function(x){return x.name;}).join(" / "),
+        coverURL: d.background_image || ""
+      };
+    });
+}
+function igdbGetToken(){
+  var url = "https://id.twitch.tv/oauth2/token?client_id=" + IGDB_CLIENT_ID + "&client_secret=" + IGDB_CLIENT_SECRET + "&grant_type=client_credentials";
+  return fetch(url, { method: "POST" }).then(function(r){ if(!r.ok) throw new Error("Twitch-Login: HTTP "+r.status); return r.json(); })
+    .then(function(d){ if(!d.access_token) throw new Error("Kein access_token von Twitch."); return d.access_token; });
+}
+function igdbFetchCoverURL(name){
+  return igdbGetToken().then(function(token){
+    var body = 'search "' + name.replace(/"/g,'\\"') + '"; fields name,cover.image_id; limit 1;';
+    return fetch("https://api.igdb.com/v4/games", {
+      method: "POST",
+      headers: { "Client-ID": IGDB_CLIENT_ID, "Authorization": "Bearer " + token, "Content-Type": "text/plain" },
+      body: body
+    });
+  }).then(function(r){ if(!r.ok) throw new Error("IGDB Suche: HTTP "+r.status); return r.json(); })
+    .then(function(arr){
+      var hit = arr && arr[0];
+      if(!hit || !hit.cover || !hit.cover.image_id) throw new Error("Kein IGDB-Cover gefunden.");
+      return "https://images.igdb.com/igdb/image/upload/t_cover_big/" + hit.cover.image_id + ".jpg";
+    });
+}
+function urlToBase64(url){
+  return fetch(url).then(function(r){ if(!r.ok) throw new Error("Bild-Download: HTTP "+r.status); return r.blob(); })
+    .then(function(blob){
+      return new Promise(function(resolve,reject){
+        var reader = new FileReader();
+        reader.onload = function(){ resolve(String(reader.result).split(",")[1] || ""); };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    });
+}
+
+/* downscale + compress a captured photo to keep localStorage lean */
+function fileToCompressedBase64(file, maxDim){
+  return new Promise(function(resolve, reject){
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      URL.revokeObjectURL(url);
+      var w = img.width, h = img.height;
+      var scale = Math.min(1, (maxDim||900) / Math.max(w,h));
+      var cw = Math.round(w*scale), ch = Math.round(h*scale);
+      var canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      canvas.getContext("2d").drawImage(img,0,0,cw,ch);
+      var dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      resolve(dataUrl.split(",")[1] || "");
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/* ---------------- barcode scanner (ZXing) ---------------- */
+var zxingReader = null;
+function stopScanner(){
+  if(zxingReader){ try{ zxingReader.reset(); }catch(e){} zxingReader = null; }
+}
+function startScanner(videoEl, onResult, onError){
+  if(!window.ZXing){ onError("Scanner-Bibliothek konnte nicht geladen werden (kein Internet beim Laden der Seite?)."); return; }
+  try{
+    zxingReader = new ZXing.BrowserMultiFormatReader();
+    zxingReader.decodeFromConstraints(
+      { video: { facingMode: "environment" } },
+      videoEl,
+      function(result, err){
+        if(result){ onResult(result.getText()); }
+      }
+    ).catch(function(err){ onError("Kamera nicht verfügbar: " + err.message); });
+  }catch(e){ onError("Scanner-Fehler: " + e.message); }
+}
+
+/* ---------------- render helpers ---------------- */
+function renderTabbar(){
+  var tabs = [
+    {id:"regal", ic:"▤", lb:"Regal"},
+    {id:"search", ic:"⌕", lb:"Suche"},
+    {id:"more", ic:"≡", lb:"Mehr"}
+  ];
+  return '<div class="tabbar"><div class="tabbar-inner">' + tabs.map(function(t){
+    var active = (state.view===t.id) || (t.id==="more" && ["stats","sync"].indexOf(state.view)>=0);
+    return '<button class="tab'+(active?' active':'')+'" data-tab="'+t.id+'"><span class="ic">'+t.ic+'</span><span class="lb">'+t.lb+'</span></button>';
+  }).join('') + '</div></div>';
+}
+function spineCardHtml(g){
+  var shaded = hasCover(g) ? ' shade' : '';
+  return '<div class="spine" style="'+coverBgStyle(g)+'" data-open="'+esc(g.name)+'">'+
+    '<div class="inner'+shaded+'"><div class="stripe"></div>'+
+    '<div class="name">'+esc(g.name)+'</div>'+
+    '<div class="meta">'+esc(g.publisher||"—")+'<br>'+esc(g.medium||"")+' · '+esc(g.jahr||"?")+'</div>'+
+    '</div></div>';
+}
+function listCardHtml(g){
+  var zc = zustandClass(g.zustand);
+  return '<button class="card" data-open="'+esc(g.name)+'">'+
+    '<div class="thumb" style="'+coverBgStyle(g)+'"></div>'+
+    '<div class="body">'+
+      '<div class="title">'+esc(g.name)+'</div>'+
+      '<div class="sub">'+esc(g.publisher||"—")+' · '+esc(g.jahr||"?")+' · '+esc(g.plattform||"PC")+'</div>'+
+    '</div>'+
+    '<div class="end">'+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+'<span class="wert tnum">'+fmtEuro(parseWert(g.wert))+'</span></div>'+
+  '</button>';
+}
+function viewRegal(){
+  var groups = {}; var order = [];
+  var sorted = state.games.slice().sort(function(a,b){ return a.name.localeCompare(b.name,"de"); });
+  sorted.forEach(function(g){
+    var first = (g.name||"?").trim().charAt(0).toUpperCase();
+    var key = /[A-ZÄÖÜ]/.test(first) ? first : "#";
+    if(!groups[key]){ groups[key] = []; order.push(key); }
+    groups[key].push(g);
+  });
+  order.sort(function(a,b){ return a==="#"?1:(b==="#"?-1:a.localeCompare(b)); });
+
+  var html = '<div class="bar"><div class="bar-row"><div>'+
+    '<div class="eyebrow">Sammlung · A–Z</div><h1>Meine BigBox Spiele</h1>'+
+    '<div class="detail-line" style="color:var(--shelf-ink-dim);margin-top:3px">'+state.games.length+' Spiele · '+order.length+' Regalreihen</div>'+
+    '</div><div class="chip-value" data-tab="stats"><div class="eyebrow">Gesamtwert</div><div class="v tnum">'+fmtEuro(totalValue())+'</div></div>'+
+    '</div></div>';
+  html += '<div class="content">';
+  if(!state.games.length){
+    html += '<div class="empty">Noch keine Spiele. Importiere deine CSV unter <b>Mehr → Sync</b> oder füge manuell eins hinzu.</div>';
+  } else {
+    order.forEach(function(key){
+      html += '<div class="shelf-row"><div class="shelf-label">Regal '+esc(key)+' <span class="mono" style="color:var(--ink-dim);font-size:11px">· '+groups[key].length+' Spiele</span></div>'+
+        '<div class="shelf-scroll">'+groups[key].map(spineCardHtml).join('')+'</div>'+
+        '<div class="shelf-plank"></div><div class="shelf-plank-shadow"></div></div>';
+    });
+  }
+  html += '</div>' + renderTabbar();
+  return html;
+}
+function viewSearch(){
+  var mediums = Array.from(new Set(state.games.map(function(g){ return g.medium; }).filter(Boolean))).sort();
+  var zustands = Array.from(new Set(state.games.map(function(g){ return g.zustand; }).filter(Boolean))).sort();
+  var q = state.query.trim().toLowerCase();
+  var results = state.games.filter(function(g){
+    if(state.filterMedium && g.medium !== state.filterMedium) return false;
+    if(state.filterZustand && g.zustand !== state.filterZustand) return false;
+    if(!q) return true;
+    var hay = [g.name,g.publisher,g.entwickler,g.plattform,g.genre,g.jahr].join(" ").toLowerCase();
+    return hay.indexOf(q) >= 0;
+  });
+  results.sort(function(a,b){ return a.name.localeCompare(b.name,"de"); });
+
+  var html = '<div class="bar" style="padding-bottom:14px">'+
+    '<div class="eyebrow" style="margin-bottom:9px">Durchsuchen</div>'+
+    '<div class="searchbar"><span class="ico">⌕</span><input id="searchInput" value="'+esc(state.query)+'" placeholder="Name, Publisher, Jahr, Plattform…"></div>'+
+    (mediums.length ? '<div class="chiprow">'+mediums.map(function(m){ return '<button class="filterchip'+(state.filterMedium===m?' active':'')+'" data-medium="'+esc(m)+'">'+esc(m)+'</button>'; }).join('')+'</div>' : '')+
+    (zustands.length ? '<div class="chiprow">'+zustands.map(function(z){ return '<button class="filterchip'+(state.filterZustand===z?' active':'')+'" data-zustand="'+esc(z)+'">'+esc(z)+'</button>'; }).join('')+'</div>' : '')+
+  '</div>';
+  html += '<div class="content"><div class="resultcount">'+results.length+' Treffer</div>';
+  html += results.length ? '<div class="list">'+results.map(listCardHtml).join('')+'</div>' : '<div class="empty">Kein Treffer.</div>';
+  html += '<div style="padding:0 16px"><button class="btn ghost full" data-newgame="1">+ Box erfassen</button></div>';
+  html += '</div>' + renderTabbar();
+  return html;
+}
+function viewMore(){
+  var nc = loadNC();
+  var html = '<div class="bar"><div class="eyebrow">Mehr</div><h1>Verwaltung</h1></div><div class="content">';
+  html += '<div class="menu" style="margin-top:16px">'+
+    '<div class="menu-item" data-tab="stats"><div><div class="t">Werte &amp; Bestand</div><div class="s">Statistik zu deiner Sammlung</div></div><div class="arrow">›</div></div>'+
+    '<div class="menu-item" data-tab="sync"><div><div class="t">Sync</div><div class="s">'+(nc.url? '<span class="sync-dot ok"></span>Nextcloud verbunden' : '<span class="sync-dot off"></span>Nextcloud einrichten / CSV-Datei')+'</div></div><div class="arrow">›</div></div>'+
+    '<div class="menu-item" data-newgame="1"><div><div class="t">Box erfassen</div><div class="s">Foto, Barcode-Scan oder manuell</div></div><div class="arrow">›</div></div>'+
+  '</div>';
+  html += '<div class="pcnote" style="margin:0 16px">DOSBox-/ScummVM-Startbefehle sind PC-spezifisch und werden hier nur angezeigt, nicht bearbeitet – sie bleiben beim Sync erhalten.</div>';
+  html += '</div>' + renderTabbar();
+  return html;
+}
+function viewStats(){
+  var games = state.games;
+  var total = games.length, sum = totalValue(), avg = total ? sum/total : 0;
+  var years = games.map(function(g){ return parseInt(g.jahr,10); }).filter(function(y){ return y && !isNaN(y); });
+  var yrRange = years.length ? (Math.min.apply(null,years)+" – "+Math.max.apply(null,years)) : "—";
+  function counts(field){
+    var m = {};
+    games.forEach(function(g){ var v = (g[field]||"").trim() || "Unbekannt"; m[v] = (m[v]||0)+1; });
+    return Object.keys(m).map(function(k){ return [k,m[k]]; }).sort(function(a,b){ return b[1]-a[1]; });
+  }
+  function barsHtml(pairs, limit){
+    var top = pairs.slice(0, limit||8);
+    var max = top.length ? top[0][1] : 1;
+    return top.map(function(p){
+      var pct = Math.round((p[1]/max)*100);
+      return '<div class="barline"><div class="lb">'+esc(p[0])+'</div><div class="track"><div class="fill" style="width:'+pct+'%"></div></div><div class="n tnum">'+p[1]+'</div></div>';
+    }).join('');
+  }
+  var html = '<div class="backbar"><div class="iconbtn" data-tab="more">‹</div><div class="title">Werte &amp; Bestand</div><div class="spacer"></div></div><div class="content">';
+  html += '<div class="stat-grid">'+
+    '<div class="stat-tile"><div class="lb">Spiele gesamt</div><div class="v tnum">'+total+'</div></div>'+
+    '<div class="stat-tile"><div class="lb">Gesamtwert</div><div class="v accent tnum">'+fmtEuro(sum)+'</div></div>'+
+    '<div class="stat-tile"><div class="lb">Ø Wert / Spiel</div><div class="v tnum">'+fmtEuro(avg)+'</div></div>'+
+    '<div class="stat-tile"><div class="lb">Jahresspanne</div><div class="v tnum" style="font-size:17px">'+yrRange+'</div></div>'+
+  '</div>';
+  html += '<div class="section-title">Zustand</div><div class="bars">'+barsHtml(counts("zustand"),6)+'</div>';
+  html += '<div class="section-title">Medium</div><div class="bars">'+barsHtml(counts("medium"),8)+'</div>';
+  html += '<div class="section-title">Top Genres</div><div class="bars">'+barsHtml(counts("genre"),8)+'</div>';
+  html += '</div>';
+  return html;
+}
+function viewSync(){
+  var meta = loadMeta();
+  var nc = loadNC();
+  function fmtT(ts){ return ts ? new Date(ts).toLocaleString("de-DE") : "noch nie"; }
+  var html = '<div class="backbar"><div class="iconbtn" data-tab="more">‹</div><div class="title">Sync</div><div class="spacer"></div></div><div class="sync-body">';
+
+  html += '<div class="sync-card"><h3>Nextcloud (WebDAV)</h3><p>Trägt Spiele bei jeder Änderung automatisch hoch und prüft beim Öffnen der App auf eine neuere Version vom PC. Zugangsdaten bleiben nur lokal auf diesem Gerät gespeichert.</p>';
+  html += '<div class="form" style="padding:14px 0 0;gap:12px">'+
+    '<div class="field"><div class="lb">WebDAV-Datei-URL</div><input type="url" id="nc_url" placeholder="https://cloud.example.com/remote.php/dav/files/DEINUSER/Sammlung/spiele.csv" value="'+esc(nc.url||"")+'"></div>'+
+    '<div class="field"><div class="lb">Benutzername</div><input type="text" id="nc_user" value="'+esc(nc.user||"")+'"></div>'+
+    '<div class="field"><div class="lb">App-Passwort</div><input type="password" id="nc_pass" value="'+esc(nc.pass||"")+'"></div>'+
+  '</div>';
+  html += '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="ncSave">Speichern</button><button class="btn primary" id="ncSyncNow"'+(nc.url?'':' disabled')+'>Jetzt synchronisieren</button></div>';
+  html += '<div class="sync-meta">'+
+    (meta.lastError ? '<span class="sync-dot bad"></span>'+esc(meta.lastError)+'<br>' : (nc.url ? '<span class="sync-dot ok"></span>Verbunden<br>' : '<span class="sync-dot off"></span>Nicht eingerichtet<br>'))+
+    'Letzter Push: '+fmtT(meta.lastPush)+' · Letzter Abruf: '+fmtT(meta.lastPull)+
+  '</div></div>';
+
+  html += '<div class="sync-card"><h3>Manuell per CSV-Datei</h3><p>Alternative ohne Cloud: Datei exportieren und z. B. per AirDrop an den PC schicken, oder eine Datei vom PC importieren.</p>'+
+    '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="btnExport">Exportieren</button><button class="btn ghost" id="btnImport">Importieren…</button></div>'+
+    '<input type="file" accept=".csv,text/csv" class="filepick" id="filePick"></div>';
+
+  html += '<div class="pcnote">Hinweis: Ob dein Nextcloud-Server browserseitige Anfragen (CORS) von dieser Seite erlaubt, hängt von seiner Konfiguration ab – das konnte ich vorab nicht testen. Schlägt es fehl, hilft meist eine CORS-Freigabe für diese Seite auf dem Nextcloud-Server.</div>';
+  html += '</div>';
+  return html;
+}
+function fieldRow(k,v){ return '<div class="row"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v||"—")+'</div></div>'; }
+function viewDetail(){
+  var g = state.games[findIndex(state.selected)];
+  if(!g) return viewSearch();
+  var zc = zustandClass(g.zustand);
+  var shaded = hasCover(g) ? ' shade' : '';
+  var html = '<div class="backbar"><div class="iconbtn" data-back="1">‹</div><div class="title">'+esc(g.genre||"Sonstige")+'</div><div class="spacer"></div></div>';
+  html += '<div class="detail-hero"><div class="detail-top">'+
+    '<div class="cover" style="'+coverBgStyle(g)+'"><div class="inner'+shaded+'"><div class="stripe"></div><div class="name">'+esc(g.name)+'</div><div class="pub">'+esc(g.publisher||"")+'</div></div></div>'+
+    '<div class="detail-meta"><h2>'+esc(g.name)+'</h2>'+
+    '<div class="detail-line">'+esc(g.jahr||"?")+' · '+esc(g.entwickler||g.publisher||"—")+'</div>'+
+    '<div class="badges">'+(g.medium?'<span class="badge neutral">'+esc(g.medium)+'</span>':'')+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+'</div>'+
+    '</div></div>';
+  html += '<div class="valuebox"><div><div class="lb">Geschätzter Wert</div></div><div class="v tnum">'+fmtEuro(parseWert(g.wert))+'</div></div>';
+  html += '<div class="rows">'+fieldRow("Sprache",g.sprache)+fieldRow("Publisher",g.publisher)+fieldRow("Entwickler",g.entwickler)+fieldRow("Plattform",g.plattform)+fieldRow("Genre",g.genre)+fieldRow("Inhalt",g.inhalt)+fieldRow("Vollständig",g.vollstaendig)+'</div>';
+  if(g.exePath || g.useDosBox==="Ja" || g.useScummVM==="Ja"){
+    html += '<div class="pcnote">PC-Start: '+esc(g.exePath||"—")+(g.useDosBox==="Ja"?" · via DOSBox":"")+(g.useScummVM==="Ja"?" · via ScummVM":"")+'</div>';
+  }
+  html += '<div class="actions"><button class="btn ghost" data-edit="'+esc(g.name)+'">Bearbeiten</button><button class="btn danger" data-delete="'+esc(g.name)+'">Löschen</button></div></div>';
+  return html;
+}
+
+var ZUSTAND_OPTIONS = ["Neu (eingeschweißt)","Neuwertig","Sehr Gut","Gut","Bespielt"];
+var MEDIUM_OPTIONS = ["CD-ROM","DVD-ROM","3,5 Floppy","5,25 Floppy","3,5 + 5,25","Digital"];
+var BLANK_GAME = {name:"",sprache:"",medium:"",zustand:"",inhalt:"",vollstaendig:"",publisher:"",jahr:"",entwickler:"",plattform:"PC",coverBase64:"",coverExt:"",wert:"",genre:"",exePath:"",useDosBox:"",dosBoxConfig:"",useScummVM:"",scummVMPath:""};
+
+function viewCapture(){
+  var g = state.addFlow || Object.assign({}, BLANK_GAME);
+  var html = '<div class="backbar"><button class="linkbtn" data-back="1">Abbrechen</button><div class="title">BOX ERFASSEN</div><div class="spacer"></div></div>';
+  html += '<div class="form">';
+
+  html += '<div class="field"><div class="lb">1 · Cover fotografieren (optional)</div>';
+  if(hasCover(g)){
+    html += '<div class="cover" style="'+coverBgStyle(g)+';width:100%;height:150px"></div>';
+  }
+  html += '<input type="file" accept="image/*" capture="environment" class="filepick" id="capturePhoto">'+
+          '<button class="btn ghost full" id="btnCapturePhoto">'+(hasCover(g)?'Neues Foto aufnehmen':'Box abfotografieren')+'</button></div>';
+
+  html += '<div class="field"><div class="lb">2 · Barcode scannen (optional)</div>';
+  if(state.scanBusy){
+    html += '<div class="scanwrap"><video id="scanVideo" autoplay playsinline muted></video><div class="frame"></div></div>'+
+            '<button class="btn ghost full" id="btnStopScan">Scan beenden</button>';
+  } else {
+    html += '<button class="btn ghost full" id="btnStartScan">Barcode scannen</button>'+
+            '<div class="pcnote">Der Scan liest nur den Code – es gibt keine Barcode-Produktdatenbank angebunden (auch die PC-App hat keine). Das Ergebnis landet als Text im Namensfeld zum Nachbearbeiten.</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="field"><div class="lb">3 · Name &amp; Online-Abgleich (RAWG/IGDB)</div>'+
+    '<input type="text" id="f_name" placeholder="Titel eingeben…" value="'+esc(g.name)+'">'+
+    '<button class="btn primary full" id="btnMatch" '+(state.matchBusy?'disabled':'')+'>'+(state.matchBusy?'<span class="spin"></span>Suche läuft…':'Bei RAWG/IGDB suchen')+'</button></div>';
+
+  if(state.matchResult){
+    var m = state.matchResult;
+    if(m.error){
+      html += '<div class="pcnote">'+esc(m.error)+'</div>';
+    } else {
+      html += '<div class="sync-card"><h3>Gefunden</h3>'+
+        '<div class="rows">'+fieldRow("Jahr",m.jahr)+fieldRow("Entwickler",m.entwickler)+fieldRow("Publisher",m.publisher)+fieldRow("Cover",m.coverBase64?"IGDB-Cover gefunden":"kein Cover gefunden")+'</div>'+
+        '<button class="btn ghost full" style="margin-top:12px" id="btnUseMatch">Übernehmen</button></div>';
+    }
+  }
+
+  html += '<button class="btn primary full" id="btnToDetails">Weiter zu allen Feldern</button>';
+  html += '</div>';
+  return html;
+}
+
+function viewEdit(){
+  var isNew = state.editing === null;
+  var base = state.addFlow || (isNew ? Object.assign({}, BLANK_GAME) : state.games[findIndex(state.editing)]);
+  if(!base) return viewSearch();
+  var g = base;
+
+  function pillrow(name, options, current){
+    return '<div class="pillrow">'+options.map(function(o){ return '<button type="button" class="pill'+(o===current?' active':'')+'" data-pill="'+name+'" data-val="'+esc(o)+'">'+esc(o)+'</button>'; }).join('')+'</div>';
+  }
+  var html = '<div class="backbar"><button class="linkbtn" data-back="1">Abbrechen</button><div class="title">'+(isNew?'NEU ERFASSEN':'BEARBEITEN')+'</div><button class="linkbtn accent" id="btnSave">Speichern</button></div>';
+  html += '<div class="form">';
+  if(hasCover(g)){ html += '<div class="cover" style="'+coverBgStyle(g)+';width:100%;height:150px"></div>'; }
+  html += '<div class="field"><div class="lb">Name</div><input type="text" id="f_name" value="'+esc(g.name)+'"></div>';
+  html += '<div class="field"><div class="lb">Publisher</div><input type="text" id="f_publisher" value="'+esc(g.publisher)+'"></div>';
+  html += '<div class="field"><div class="lb">Entwickler</div><input type="text" id="f_entwickler" value="'+esc(g.entwickler)+'"></div>';
+  html += '<div style="display:flex;gap:12px"><div class="field" style="flex:1"><div class="lb">Jahr</div><input type="text" id="f_jahr" value="'+esc(g.jahr)+'"></div>'+
+          '<div class="field" style="flex:1"><div class="lb">Wert (€)</div><input type="number" id="f_wert" value="'+esc(parseWert(g.wert)||"")+'"></div></div>';
+  html += '<div class="field"><div class="lb">Genre</div><input type="text" id="f_genre" value="'+esc(g.genre)+'"></div>';
+  html += '<div class="field"><div class="lb">Sprache</div><input type="text" id="f_sprache" value="'+esc(g.sprache)+'"></div>';
+  html += '<div class="field"><div class="lb">Plattform</div><input type="text" id="f_plattform" value="'+esc(g.plattform)+'"></div>';
+  html += '<div class="field"><div class="lb">Inhalt der Box</div><textarea id="f_inhalt">'+esc(g.inhalt)+'</textarea></div>';
+  html += '<label class="checkline"><input type="checkbox" id="f_voll" '+(g.vollstaendig==="Ja"?"checked":"")+'><span>Vollständig (Anleitung, Karten etc.)</span></label>';
+  html += '<div class="field"><div class="lb">Zustand</div>'+pillrow("zustand",ZUSTAND_OPTIONS,g.zustand)+'</div>';
+  html += '<div class="field"><div class="lb">Medium</div>'+pillrow("medium",MEDIUM_OPTIONS,g.medium)+'</div>';
+  if(g.exePath || g.useDosBox==="Ja" || g.useScummVM==="Ja"){
+    html += '<div class="pcnote">PC-Startbefehl (nur am PC relevant, bleibt beim Speichern unverändert): '+esc(g.exePath||"—")+'</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+/* ---------------- main render ---------------- */
+function render(){
+  var root = document.getElementById("app");
+  var html = "";
+  switch(state.view){
+    case "regal": html = viewRegal(); break;
+    case "search": html = viewSearch(); break;
+    case "more": html = viewMore(); break;
+    case "stats": html = viewStats(); break;
+    case "sync": html = viewSync(); break;
+    case "detail": html = viewDetail(); break;
+    case "capture": html = viewCapture(); break;
+    case "edit": html = viewEdit(); break;
+    default: html = viewRegal();
+  }
+  root.innerHTML = html;
+
+  var toastHost = document.getElementById("toastHost");
+  toastHost.innerHTML = state.toast ? '<div class="toast">'+esc(state.toast)+'</div>' : "";
+  if(state.confirm){
+    toastHost.innerHTML += '<div class="confirm-backdrop" id="confirmBackdrop"><div class="confirm-sheet">'+
+      '<h3>'+esc(state.confirm.title)+'</h3><p>'+esc(state.confirm.msg)+'</p>'+
+      '<div class="actions"><button class="btn ghost" id="confirmCancel">Abbrechen</button><button class="btn primary" id="confirmOk">'+esc(state.confirm.okLabel||"OK")+'</button></div>'+
+    '</div></div>';
+  }
+  wireEvents(root);
+  wireToastEvents();
+
+  if(state.view === "capture" && state.scanBusy){
+    var video = document.getElementById("scanVideo");
+    if(video){
+      startScanner(video, function(text){
+        state.scanBusy = false;
+        var g = Object.assign({}, state.addFlow || BLANK_GAME, { name: (state.addFlow&&state.addFlow.name) || text });
+        state.addFlow = g;
+        showToast("Barcode gelesen: " + text);
+        render();
+      }, function(err){
+        state.scanBusy = false;
+        showToast(err);
+        render();
+      });
+    }
+  }
+}
+function wireToastEvents(){
+  var cancel = document.getElementById("confirmCancel");
+  var ok = document.getElementById("confirmOk");
+  if(cancel) cancel.onclick = function(){ state.confirm = null; render(); };
+  if(ok) ok.onclick = function(){ var fn = state.confirm && state.confirm.onOk; state.confirm = null; if(fn) fn(); render(); };
+}
+
+function wireEvents(root){
+  root.querySelectorAll("[data-tab]").forEach(function(el){ el.addEventListener("click", function(){ go(el.getAttribute("data-tab")); }); });
+  root.querySelectorAll("[data-open]").forEach(function(el){ el.addEventListener("click", function(){ go("detail", {selected: el.getAttribute("data-open")}); }); });
+  root.querySelectorAll("[data-back]").forEach(function(el){ el.addEventListener("click", function(){ state.addFlow=null; state.matchResult=null; go("search"); }); });
+  root.querySelectorAll("[data-edit]").forEach(function(el){ el.addEventListener("click", function(){ go("edit", {editing: el.getAttribute("data-edit"), addFlow:null}); }); });
+  root.querySelectorAll("[data-newgame]").forEach(function(el){ el.addEventListener("click", function(){ go("capture", {editing:null, addFlow: Object.assign({}, BLANK_GAME), matchResult:null}); }); });
+  root.querySelectorAll("[data-delete]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var name = el.getAttribute("data-delete");
+      state.confirm = { title:"Spiel löschen?", msg:'"'+name+'" wird endgültig entfernt.', okLabel:"Löschen",
+        onOk:function(){ var idx=findIndex(name); if(idx>=0){ state.games.splice(idx,1); persistGames(); } go("search"); showToast("Gelöscht."); } };
+      render();
+    });
+  });
+  root.querySelectorAll("[data-medium]").forEach(function(el){ el.addEventListener("click", function(){ var v=el.getAttribute("data-medium"); state.filterMedium = state.filterMedium===v?null:v; render(); }); });
+  root.querySelectorAll("[data-zustand]").forEach(function(el){ el.addEventListener("click", function(){ var v=el.getAttribute("data-zustand"); state.filterZustand = state.filterZustand===v?null:v; render(); }); });
+
+  var searchInput = document.getElementById("searchInput");
+  if(searchInput){
+    searchInput.addEventListener("input", function(){
+      state.query = searchInput.value; render();
+      var again = document.getElementById("searchInput");
+      if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    });
+  }
+  root.querySelectorAll("[data-pill]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var group = el.getAttribute("data-pill");
+      root.querySelectorAll('[data-pill="'+group+'"]').forEach(function(p){ p.classList.remove("active"); });
+      el.classList.add("active");
+    });
+  });
+
+  /* capture flow */
+  var btnCapturePhoto = document.getElementById("btnCapturePhoto");
+  var capturePhoto = document.getElementById("capturePhoto");
+  if(btnCapturePhoto && capturePhoto){
+    btnCapturePhoto.addEventListener("click", function(){ capturePhoto.click(); });
+    capturePhoto.addEventListener("change", function(){
+      var file = capturePhoto.files && capturePhoto.files[0];
+      if(!file) return;
+      fileToCompressedBase64(file, 900).then(function(b64){
+        state.addFlow = Object.assign({}, state.addFlow || BLANK_GAME, { coverBase64: b64, coverExt: ".jpg" });
+        showToast("Foto übernommen.");
+        render();
+      }).catch(function(){ showToast("Foto konnte nicht verarbeitet werden."); });
+    });
+  }
+  var btnStartScan = document.getElementById("btnStartScan");
+  if(btnStartScan) btnStartScan.addEventListener("click", function(){ state.scanBusy = true; render(); });
+  var btnStopScan = document.getElementById("btnStopScan");
+  if(btnStopScan) btnStopScan.addEventListener("click", function(){ state.scanBusy = false; stopScanner(); render(); });
+
+  var btnMatch = document.getElementById("btnMatch");
+  if(btnMatch){
+    btnMatch.addEventListener("click", function(){
+      var name = document.getElementById("f_name").value.trim();
+      if(!name){ showToast("Bitte zuerst einen Namen eingeben."); return; }
+      state.addFlow = Object.assign({}, state.addFlow || BLANK_GAME, { name: name });
+      state.matchBusy = true; state.matchResult = null; render();
+      var rawgP = rawgFetchGameData(name).catch(function(e){ return { error: e.message }; });
+      rawgP.then(function(rawg){
+        var base = rawg.error ? { jahr:"", entwickler:"", publisher:"" } : rawg;
+        return igdbFetchCoverURL(name).then(function(coverUrl){ return urlToBase64(coverUrl).then(function(b64){ base.coverBase64 = b64; return base; }); })
+          .catch(function(e){ base.igdbError = e.message; return base; })
+          .then(function(res){
+            state.matchBusy = false;
+            if(rawg.error && res.igdbError){ state.matchResult = { error: "RAWG: "+rawg.error+" · IGDB: "+res.igdbError }; }
+            else { state.matchResult = res; }
+            render();
+          });
+      });
+    });
+  }
+  var btnUseMatch = document.getElementById("btnUseMatch");
+  if(btnUseMatch){
+    btnUseMatch.addEventListener("click", function(){
+      var m = state.matchResult || {};
+      var patch = { jahr: m.jahr||"", entwickler: m.entwickler||"", publisher: m.publisher||"" };
+      if(m.coverBase64 && !hasCover(state.addFlow)){ patch.coverBase64 = m.coverBase64; patch.coverExt = ".jpg"; }
+      state.addFlow = Object.assign({}, state.addFlow || BLANK_GAME, patch);
+      showToast("Übernommen.");
+      render();
+    });
+  }
+  var btnToDetails = document.getElementById("btnToDetails");
+  if(btnToDetails){
+    btnToDetails.addEventListener("click", function(){
+      var nameEl = document.getElementById("f_name");
+      if(nameEl) state.addFlow = Object.assign({}, state.addFlow || BLANK_GAME, { name: nameEl.value.trim() });
+      go("edit", { editing: null });
+    });
+  }
+
+  var btnSave = document.getElementById("btnSave");
+  if(btnSave){
+    btnSave.addEventListener("click", function(){
+      var name = document.getElementById("f_name").value.trim();
+      if(!name){ showToast("Bitte einen Namen eingeben."); return; }
+      var isNew = state.editing === null;
+      var existingIdx = findIndex(isNew ? name : state.editing);
+      var carry = state.addFlow || (!isNew && existingIdx>=0 ? state.games[existingIdx] : BLANK_GAME);
+      var base = Object.assign({}, carry);
+
+      base.name = name;
+      base.publisher = document.getElementById("f_publisher").value;
+      base.entwickler = document.getElementById("f_entwickler").value;
+      base.jahr = document.getElementById("f_jahr").value;
+      base.wert = document.getElementById("f_wert").value;
+      base.genre = document.getElementById("f_genre").value;
+      base.sprache = document.getElementById("f_sprache").value;
+      base.plattform = document.getElementById("f_plattform").value;
+      base.inhalt = document.getElementById("f_inhalt").value;
+      base.vollstaendig = document.getElementById("f_voll").checked ? "Ja" : "Nein";
+      var zPicked = root.querySelector('[data-pill="zustand"].active');
+      if(zPicked) base.zustand = zPicked.getAttribute("data-val");
+      var mPicked = root.querySelector('[data-pill="medium"].active');
+      if(mPicked) base.medium = mPicked.getAttribute("data-val");
+
+      if(isNew){
+        if(findIndex(name) >= 0){ showToast("Ein Spiel mit diesem Namen existiert bereits."); return; }
+        state.games.push(base);
+      } else if(existingIdx>=0){
+        state.games[existingIdx] = base;
+      }
+      persistGames();
+      state.addFlow = null; state.matchResult = null;
+      go("detail", {selected: name});
+      showToast(isNew ? "Hinzugefügt." : "Gespeichert.");
+    });
+  }
+
+  /* CSV file export/import (manual fallback) */
+  var btnExport = document.getElementById("btnExport");
+  if(btnExport){
+    btnExport.addEventListener("click", function(){
+      var csv = toCSV(state.games);
+      var blob = new Blob([csv], {type:"text/csv"});
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "spiele_export.csv";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      showToast("CSV exportiert.");
+    });
+  }
+  var btnImport = document.getElementById("btnImport");
+  var filePick = document.getElementById("filePick");
+  if(btnImport && filePick){
+    btnImport.addEventListener("click", function(){ filePick.click(); });
+    filePick.addEventListener("change", function(){
+      var file = filePick.files && filePick.files[0];
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(){
+        var parsed;
+        try{ parsed = parseCSV(String(reader.result)); }catch(e){ parsed = []; }
+        if(!parsed.length){ showToast("Datei konnte nicht gelesen werden."); return; }
+        state.confirm = { title:"Bestand ersetzen?", msg:"Die Datei enthält "+parsed.length+" Spiele und ersetzt die aktuell "+state.games.length+" Spiele auf diesem Handy.", okLabel:"Importieren",
+          onOk:function(){ state.games = parsed; persistGames(); var m=loadMeta(); m.lastPull=Date.now(); saveMeta(m); go("regal"); showToast("Import abgeschlossen: "+parsed.length+" Spiele."); } };
+        render();
+      };
+      reader.readAsText(file, "utf-8");
+      filePick.value = "";
+    });
+  }
+
+  /* nextcloud settings */
+  var ncSave = document.getElementById("ncSave");
+  if(ncSave){
+    ncSave.addEventListener("click", function(){
+      var nc = { url: document.getElementById("nc_url").value.trim(), user: document.getElementById("nc_user").value.trim(), pass: document.getElementById("nc_pass").value };
+      saveNC(nc);
+      showToast("Gespeichert.");
+      render();
+      if(nc.url) pullFromNextcloud(true);
+    });
+  }
+  var ncSyncNow = document.getElementById("ncSyncNow");
+  if(ncSyncNow){
+    ncSyncNow.addEventListener("click", function(){
+      showToast("Synchronisiere…");
+      pullFromNextcloud(false).then(function(){ return pushToNextcloud(); });
+    });
+  }
+}
+
+/* ---------------- boot ---------------- */
+render();
+var __nc0 = loadNC();
+if(__nc0.url){ setTimeout(function(){ pullFromNextcloud(true); }, 800); }
+})();
+</script>
+</body>
+</html>
