@@ -734,7 +734,7 @@ function viewSync(){
   html += '<div class="form" style="padding:14px 0 0;gap:12px">'+
     '<div class="field"><div class="lb">WebDAV-Datei-URL</div><input type="url" id="nc_url" placeholder="https://cloud.example.com/remote.php/dav/files/DEINUSER/Sammlung/spiele.csv" value="'+esc(nc.url||"")+'"></div>'+
     '<div class="field"><div class="lb">Benutzername</div><input type="text" id="nc_user" value="'+esc(nc.user||"")+'"></div>'+
-    '<div class="field"><div class="lb">App-Passwort</div><input type="password" id="nc_pass" value="'+esc(nc.pass||"")+'"></div>'+
+    '<div class="field"><div class="lb">App-Passwort</div><div style="display:flex;gap:8px"><input type="password" id="nc_pass" style="flex:1" value="'+esc(nc.pass||"")+'"><button type="button" class="btn ghost" style="flex:none;padding:11px 14px" id="ncTogglePass">👁</button></div></div>'+
   '</div>';
   html += '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="ncSave">Speichern</button><button class="btn primary" id="ncSyncNow"'+(nc.url?'':' disabled')+'>Jetzt synchronisieren</button></div>';
   html += '<div class="sync-meta">'+
@@ -1126,10 +1126,17 @@ function wireEvents(root){
   }
 
   /* nextcloud settings */
+  var ncTogglePass = document.getElementById("ncTogglePass");
+  if(ncTogglePass){
+    ncTogglePass.addEventListener("click", function(){
+      var f = document.getElementById("nc_pass");
+      f.type = f.type === "password" ? "text" : "password";
+    });
+  }
   var ncSave = document.getElementById("ncSave");
   if(ncSave){
     ncSave.addEventListener("click", function(){
-      var nc = { url: document.getElementById("nc_url").value.trim(), user: document.getElementById("nc_user").value.trim(), pass: document.getElementById("nc_pass").value };
+      var nc = { url: document.getElementById("nc_url").value.trim(), user: document.getElementById("nc_user").value.trim(), pass: document.getElementById("nc_pass").value.trim() };
       saveNC(nc);
       showToast("Gespeichert.");
       render();
