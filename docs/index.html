@@ -272,15 +272,66 @@ function fetchFriendList(friend){
     });
 }
 
-function loadGames(){
-  try{
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){ var arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length) return arr; }
-  }catch(e){}
-  return SEED_GAMES.slice();
+/* ---------------- storage (IndexedDB) ----------------
+   localStorage has a ~5-10MB per-origin quota; a real collection with
+   embedded base64 cover images blows well past that. IndexedDB has a
+   much larger quota and is built for exactly this. Games live there;
+   small settings (meta/nextcloud/friends/profile) stay in localStorage. */
+var IDB_NAME = "bigbox-db";
+var IDB_STORE = "kv";
+var GAMES_IDB_KEY = "games";
+function idbOpen(){
+  return new Promise(function(resolve, reject){
+    if(!window.indexedDB){ reject(new Error("IndexedDB nicht verfügbar")); return; }
+    var req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = function(){ req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = function(){ resolve(req.result); };
+    req.onerror = function(){ reject(req.error || new Error("IndexedDB konnte nicht geöffnet werden")); };
+  });
+}
+function idbGet(key){
+  return idbOpen().then(function(db){
+    return new Promise(function(resolve, reject){
+      var tx = db.transaction(IDB_STORE, "readonly");
+      var req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  });
+}
+function idbSet(key, value){
+  return idbOpen().then(function(db){
+    return new Promise(function(resolve, reject){
+      var tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = function(){ resolve(); };
+      tx.onerror = function(){ reject(tx.error); };
+    });
+  });
+}
+function loadGamesAsync(){
+  return idbGet(GAMES_IDB_KEY).then(function(arr){
+    if(Array.isArray(arr) && arr.length) return arr;
+    /* one-time migration from the old localStorage-based store */
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        var old = JSON.parse(raw);
+        if(Array.isArray(old) && old.length){
+          return idbSet(GAMES_IDB_KEY, old).then(function(){
+            localStorage.removeItem(STORAGE_KEY);
+            return old;
+          });
+        }
+      }
+    }catch(e){}
+    return SEED_GAMES.slice();
+  }).catch(function(){ return SEED_GAMES.slice(); });
 }
 function persistGames(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.games)); }catch(e){}
+  idbSet(GAMES_IDB_KEY, state.games).catch(function(err){
+    showToast("Speichern fehlgeschlagen: " + (err && err.message ? err.message : err));
+  });
   scheduleAutoPush();
 }
 
@@ -354,7 +405,8 @@ function coverBgStyle(g){
 
 /* ---------------- state ---------------- */
 var state = {
-  games: loadGames(),
+  games: SEED_GAMES.slice(),
+  gamesLoaded: false,
   view: "regal",
   query: "",
   sortBy: "name",
@@ -466,7 +518,9 @@ function pullFromNextcloud(silent){
     });
 }
 function persistGamesNoPush(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.games)); }catch(e){}
+  idbSet(GAMES_IDB_KEY, state.games).catch(function(err){
+    showToast("Speichern fehlgeschlagen: " + (err && err.message ? err.message : err));
+  });
 }
 
 /* ---------------- RAWG / IGDB (mirrors RawgApi.pas / IgdbApi.pas) ---------------- */
@@ -1205,8 +1259,13 @@ function wireEvents(root){
 
 /* ---------------- boot ---------------- */
 render();
-var __nc0 = loadNC();
-if(__nc0.url){ setTimeout(function(){ pullFromNextcloud(true); }, 800); }
+loadGamesAsync().then(function(games){
+  state.games = games;
+  state.gamesLoaded = true;
+  render();
+  var __nc0 = loadNC();
+  if(__nc0.url){ setTimeout(function(){ pullFromNextcloud(true); }, 800); }
+});
 })();
 </script>
 </body>
