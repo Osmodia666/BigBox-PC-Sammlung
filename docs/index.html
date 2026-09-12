@@ -55,9 +55,13 @@ input,select,textarea,button{font-family:inherit}
 .backbar{display:flex;align-items:center;gap:12px;background:var(--shelf);color:var(--shelf-ink);padding:calc(12px + env(safe-area-inset-top)) 16px 14px}
 .iconbtn{width:34px;height:34px;border-radius:9px;background:var(--shelf-raised);border:1px solid var(--shelf-line);display:flex;align-items:center;justify-content:center;cursor:pointer;font:500 16px 'IBM Plex Mono',monospace;color:var(--shelf-ink);flex:none}
 .backbar .title{font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--shelf-ink-dim);text-transform:uppercase}
+.backbar .title.center{flex:1;text-align:center}
 .backbar .spacer{flex:1}
 .linkbtn{font:500 13px/1 'IBM Plex Sans',sans-serif;color:var(--shelf-ink-dim);cursor:pointer;background:none;border:0;padding:8px}
 .linkbtn.accent{color:var(--brass-bright)}
+.hdrbtn{font:600 13px/1 'IBM Plex Sans',sans-serif;cursor:pointer;border-radius:9px;padding:10px 16px;border:1px solid var(--shelf-line)}
+.hdrbtn.ghost{background:var(--shelf-raised);color:var(--shelf-ink)}
+.hdrbtn.accent{background:var(--brass-bright);color:#1c1a16;border-color:var(--brass-bright)}
 
 .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:100px}
 .section-title{padding:16px 18px 8px;font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--ink-dim);text-transform:uppercase}
@@ -451,7 +455,6 @@ var state = {
   sortBy: "name",
   filterMedium: null,
   filterZustand: null,
-  selected: null,
   editing: null,
   addFlow: null,
   toast: null,
@@ -690,9 +693,9 @@ function renderTabbar(){
 }
 function spineCardHtml(g){
   if(hasCover(g)){
-    return '<div class="spine" style="'+coverBgStyle(g)+'" data-open="'+esc(g.name)+'"></div>';
+    return '<div class="spine" style="'+coverBgStyle(g)+'" data-edit="'+esc(g.name)+'"></div>';
   }
-  return '<div class="spine" style="'+coverBgStyle(g)+'" data-open="'+esc(g.name)+'">'+
+  return '<div class="spine" style="'+coverBgStyle(g)+'" data-edit="'+esc(g.name)+'">'+
     '<div class="inner"><div class="stripe"></div>'+
     '<div class="name">'+esc(g.name)+'</div>'+
     '<div class="meta">'+esc(g.publisher||"—")+'<br>'+esc(g.medium||"")+' · '+esc(g.jahr||"?")+'</div>'+
@@ -700,7 +703,7 @@ function spineCardHtml(g){
 }
 function listCardHtml(g){
   var zc = zustandClass(g.zustand);
-  return '<button class="card" data-open="'+esc(g.name)+'">'+
+  return '<button class="card" data-edit="'+esc(g.name)+'">'+
     '<div class="thumb" style="'+coverBgStyle(g)+'"></div>'+
     '<div class="body">'+
       '<div class="title">'+esc(g.name)+'</div>'+
@@ -924,24 +927,6 @@ function viewWishlist(){
   return html;
 }
 function fieldRow(k,v){ return '<div class="row"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v||"—")+'</div></div>'; }
-function viewDetail(){
-  var g = state.games[findIndex(state.selected)];
-  if(!g) return viewSearch();
-  var zc = zustandClass(g.zustand);
-  var coverInner = hasCover(g) ? '' : '<div class="inner"><div class="stripe"></div><div class="name">'+esc(g.name)+'</div><div class="pub">'+esc(g.publisher||"")+'</div></div>';
-  var html = '<div class="backbar"><div class="iconbtn" data-back="1">‹</div><div class="title">'+esc(g.genre||"Sonstige")+'</div><div class="spacer"></div></div>';
-  html += '<div class="detail-hero"><div class="detail-top">'+
-    '<div class="cover" style="'+coverBgStyle(g)+'">'+coverInner+'</div>'+
-    '<div class="detail-meta"><h2>'+esc(g.name)+'</h2>'+
-    '<div class="detail-line">'+esc(g.jahr||"?")+' · '+esc(g.entwickler||g.publisher||"—")+'</div>'+
-    '<div class="badges">'+(g.medium?'<span class="badge neutral">'+esc(g.medium)+'</span>':'')+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+tauschbarBadge(g)+pcBadges(g)+'</div>'+
-    '</div></div>';
-  html += '<div class="valuebox"><div><div class="lb">Geschätzter Wert</div></div><div class="v tnum">'+fmtEuro(parseWert(g.wert))+'</div></div>';
-  html += '<div class="rows">'+fieldRow("Sprache",g.sprache)+fieldRow("Publisher",g.publisher)+fieldRow("Entwickler",g.entwickler)+fieldRow("Plattform",g.plattform)+fieldRow("Genre",g.genre)+fieldRow("Inhalt",g.inhalt)+fieldRow("Vollständig",g.vollstaendig)+'</div>';
-  html += '<div class="actions"><button class="btn ghost" data-edit="'+esc(g.name)+'">Bearbeiten</button><button class="btn danger" data-delete="'+esc(g.name)+'">Löschen</button></div></div>';
-  return html;
-}
-
 var ZUSTAND_OPTIONS = ["Neu (eingeschweißt)","Neuwertig","Sehr Gut","Gut","Bespielt"];
 var MEDIUM_OPTIONS = ["CD-ROM","DVD-ROM","3,5 Floppy","5,25 Floppy","3,5 + 5,25","Digital"];
 var BLANK_GAME = {name:"",sprache:"",medium:"",zustand:"",inhalt:"",vollstaendig:"",publisher:"",jahr:"",entwickler:"",plattform:"PC",coverBase64:"",coverExt:"",wert:"",genre:"",exePath:"",useDosBox:"",dosBoxConfig:"",useScummVM:"",scummVMPath:"",tauschbar:""};
@@ -953,7 +938,7 @@ function viewEdit(){
   function pillrow(name, options, current){
     return '<div class="pillrow">'+options.map(function(o){ return '<button type="button" class="pill'+(o===current?' active':'')+'" data-pill="'+name+'" data-val="'+esc(o)+'">'+esc(o)+'</button>'; }).join('')+'</div>';
   }
-  var html = '<div class="backbar"><button class="linkbtn" data-canceledit="1">Abbrechen</button><div class="title">'+(isNew?'BOX ERFASSEN':'BEARBEITEN')+'</div><button class="linkbtn accent" id="btnSave">Speichern</button></div>';
+  var html = '<div class="backbar"><button class="hdrbtn ghost" data-canceledit="1">Abbrechen</button><div class="title center">'+(isNew?'BOX ERFASSEN':'BEARBEITEN')+'</div><button class="hdrbtn accent" id="btnSave">Speichern</button></div>';
   html += '<div class="form">';
 
   html += '<div class="field"><div class="lb">Cover fotografieren</div>';
@@ -999,6 +984,9 @@ function viewEdit(){
   if(g.useDosBox==="Ja" || g.useScummVM==="Ja"){
     html += '<div class="pcnote">'+pcBadges(g)+' — nur am PC eingerichtet, bleibt beim Speichern unverändert.</div>';
   }
+  if(!isNew){
+    html += '<button class="btn danger full" data-delete="'+esc(g.name)+'">Spiel löschen</button>';
+  }
   html += '</div>';
   return html;
 }
@@ -1014,7 +1002,6 @@ function render(){
     case "stats": html = viewStats(); break;
     case "sync": html = viewSync(); break;
     case "wishlist": html = viewWishlist(); break;
-    case "detail": html = viewDetail(); break;
     case "edit": html = viewEdit(); break;
     default: html = viewRegal();
   }
@@ -1046,13 +1033,10 @@ function wireEvents(root){
       go(tab);
     });
   });
-  root.querySelectorAll("[data-open]").forEach(function(el){ el.addEventListener("click", function(){ go("detail", {selected: el.getAttribute("data-open")}); }); });
-  root.querySelectorAll("[data-back]").forEach(function(el){ el.addEventListener("click", function(){ go("search"); }); });
   root.querySelectorAll("[data-canceledit]").forEach(function(el){
     el.addEventListener("click", function(){
-      var wasEditing = state.editing;
       state.addFlow = null; state.matchResult = null;
-      if(wasEditing !== null){ go("detail", {selected: wasEditing}); } else { go("search"); }
+      go("search");
     });
   });
   root.querySelectorAll("[data-edit]").forEach(function(el){
@@ -1195,7 +1179,7 @@ function wireEvents(root){
       }
       persistGames();
       state.addFlow = null; state.matchResult = null;
-      go("detail", {selected: name});
+      go("search");
       showToast(isNew ? "Hinzugefügt." : "Gespeichert.");
     });
   }
