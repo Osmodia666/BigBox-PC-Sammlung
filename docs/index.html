@@ -277,13 +277,32 @@ function pushTauschlisteToNextcloud(){
   }).then(function(res){ if(!res.ok) throw new Error("HTTP "+res.status); return siblingUrl; });
 }
 
-var friendDataCache = {}; /* url -> {status:'loading'|'ok'|'error', owner, games, error} */
+var FRIEND_SEEN_KEY = "bigbox:friendseen:v1";
+function loadFriendSeen(){ try{ return JSON.parse(localStorage.getItem(FRIEND_SEEN_KEY)) || {}; }catch(e){ return {}; } }
+function saveFriendSeen(m){ try{ localStorage.setItem(FRIEND_SEEN_KEY, JSON.stringify(m)); }catch(e){} }
+
+var friendDataCache = {}; /* url -> {status:'loading'|'ok'|'error', owner, games, error, newNames} */
 function fetchFriendList(friend){
   friendDataCache[friend.url] = { status: "loading" };
   fetch(friend.url, { cache: "no-store" })
     .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
     .then(function(data){
-      friendDataCache[friend.url] = { status: "ok", owner: data.owner || friend.name, games: Array.isArray(data.games) ? data.games : [] };
+      var games = Array.isArray(data.games) ? data.games : [];
+      var owner = data.owner || friend.name;
+      var seenAll = loadFriendSeen();
+      var prevNames = seenAll[friend.url];
+      var newNames = [];
+      if(prevNames){
+        var prevSet = {};
+        prevNames.forEach(function(n){ prevSet[n] = true; });
+        newNames = games.map(function(g){ return g.name; }).filter(function(n){ return !prevSet[n]; });
+      }
+      seenAll[friend.url] = games.map(function(g){ return g.name; });
+      saveFriendSeen(seenAll);
+      friendDataCache[friend.url] = { status: "ok", owner: owner, games: games, newNames: newNames };
+      if(prevNames && newNames.length){
+        showToast(owner + ": " + newNames.length + (newNames.length===1?" neues tauschbares Spiel":" neue tauschbare Spiele"));
+      }
       if(state.view === "wishlist") render();
     })
     .catch(function(err){
@@ -464,7 +483,13 @@ function scheduleAutoPush(){
   var nc = loadNC();
   if(!nc.url) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(pushToNextcloud, 1500);
+  pushTimer = setTimeout(function(){
+    pushToNextcloud();
+    /* Keeps the published tauschliste.json (if any games are marked
+       tauschbar) in step with every local edit - no separate manual
+       "veröffentlichen" step needed once Nextcloud is connected once. */
+    pushTauschlisteToNextcloud().catch(function(){});
+  }, 1500);
 }
 function ncAuthHeader(nc){ return "Basic " + btoa(unescape(encodeURIComponent((nc.user||"")+":"+(nc.pass||"")))); }
 
@@ -826,12 +851,12 @@ function viewSync(){
   html += '</div>';
   return html;
 }
-function friendCardHtml(g){
+function friendCardHtml(g, isNew){
   var zc = zustandClass(g.zustand);
   return '<div class="card" style="cursor:default">'+
     '<div class="thumb" style="'+coverBgStyle(g)+'"></div>'+
     '<div class="body"><div class="title">'+esc(g.name)+'</div><div class="sub">'+esc(g.publisher||"—")+' · '+esc(g.jahr||"?")+'</div></div>'+
-    '<div class="end">'+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+'</div>'+
+    '<div class="end">'+(isNew?'<span class="badge trade">Neu</span>':'')+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+'</div>'+
   '</div>';
 }
 function viewWishlist(){
@@ -868,8 +893,9 @@ function viewWishlist(){
     friends.forEach(function(f){
       var cache = friendDataCache[f.url];
       if(!cache) fetchFriendList(f);
+      var newCount = (cache && cache.newNames) ? cache.newNames.length : 0;
       html += '<div class="sync-card" style="margin:0 16px 12px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center"><h3>'+esc(f.name)+'</h3><button class="linkbtn" data-removefriend="'+esc(f.url)+'">Entfernen</button></div>';
+        '<div style="display:flex;justify-content:space-between;align-items:center"><h3>'+esc(f.name)+(newCount?' <span class="badge trade">+'+newCount+' neu</span>':'')+'</h3><button class="linkbtn" data-removefriend="'+esc(f.url)+'">Entfernen</button></div>';
       if(!cache || cache.status==="loading"){
         html += '<p><span class="spin"></span>Lädt…</p>';
       } else if(cache.status==="error"){
@@ -877,7 +903,9 @@ function viewWishlist(){
       } else if(!cache.games.length){
         html += '<p>Aktuell keine tauschbaren Spiele veröffentlicht.</p>';
       } else {
-        html += '<div class="list" style="padding:10px 0 0">'+cache.games.map(friendCardHtml).join('')+'</div>';
+        var newSet = {};
+        (cache.newNames||[]).forEach(function(n){ newSet[n] = true; });
+        html += '<div class="list" style="padding:10px 0 0">'+cache.games.map(function(g){ return friendCardHtml(g, !!newSet[g.name]); }).join('')+'</div>';
       }
       html += '</div>';
     });
@@ -1011,7 +1039,13 @@ function wireToastEvents(){
 }
 
 function wireEvents(root){
-  root.querySelectorAll("[data-tab]").forEach(function(el){ el.addEventListener("click", function(){ go(el.getAttribute("data-tab")); }); });
+  root.querySelectorAll("[data-tab]").forEach(function(el){
+    el.addEventListener("click", function(){
+      var tab = el.getAttribute("data-tab");
+      if(tab === "wishlist"){ friendDataCache = {}; }
+      go(tab);
+    });
+  });
   root.querySelectorAll("[data-open]").forEach(function(el){ el.addEventListener("click", function(){ go("detail", {selected: el.getAttribute("data-open")}); }); });
   root.querySelectorAll("[data-back]").forEach(function(el){ el.addEventListener("click", function(){ go("search"); }); });
   root.querySelectorAll("[data-canceledit]").forEach(function(el){
@@ -1282,6 +1316,9 @@ function wireEvents(root){
       var friends = loadFriends().filter(function(f){ return f.url !== url; });
       saveFriends(friends);
       delete friendDataCache[url];
+      var seenAll = loadFriendSeen();
+      delete seenAll[url];
+      saveFriendSeen(seenAll);
       render();
     });
   });
