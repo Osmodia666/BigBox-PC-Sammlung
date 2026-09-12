@@ -673,7 +673,16 @@ function attachScannerToVideo(videoEl, stream, onResult, onError){
   }catch(e){ onError("Scanner-Fehler: " + e.message); }
 }
 function cameraErrorMessage(err){
-  if(err && err.name === "NotAllowedError") return "Kamera-Zugriff wurde blockiert. In Safari unter Einstellungen → Safari → Kamera (oder per Tippen auf das „aA“-Symbol in der Adressleiste → Website-Einstellungen) für diese Seite erlauben.";
+  if(err && err.name === "NotAllowedError"){
+    var ua = navigator.userAgent || "";
+    if(/Firefox|FxiOS/i.test(ua)){
+      return "Kamera-Zugriff wurde blockiert. Das liegt meist an der App-Berechtigung, nicht an einer Website-Einstellung: Android → Einstellungen → Apps → Firefox → Berechtigungen → Kamera erlauben. iPhone → Einstellungen → Firefox → Kamera erlauben. Falls das schon an ist, zusätzlich links neben der Adresse auf das Schloss-Symbol tippen → Berechtigungen → Kamera erlauben, dann Seite neu laden.";
+    }
+    if(/Safari/i.test(ua) && !/Chrome|CriOS|FxiOS/i.test(ua)){
+      return "Kamera-Zugriff wurde blockiert. In Safari unter Einstellungen → Safari → Kamera (oder per Tippen auf das „aA“-Symbol in der Adressleiste → Website-Einstellungen) für diese Seite erlauben.";
+    }
+    return "Kamera-Zugriff wurde blockiert. Prüfe sowohl die App-Berechtigung in den System-Einstellungen deines Geräts als auch die Website-Berechtigung über das Symbol neben der Adressleiste, dann Seite neu laden.";
+  }
   if(err && err.name === "NotFoundError") return "Keine Kamera gefunden.";
   return "Kamera nicht verfügbar: " + (err && err.message ? err.message : err);
 }
@@ -1036,7 +1045,7 @@ function wireEvents(root){
   root.querySelectorAll("[data-canceledit]").forEach(function(el){
     el.addEventListener("click", function(){
       state.addFlow = null; state.matchResult = null;
-      go("search");
+      go("regal");
     });
   });
   root.querySelectorAll("[data-edit]").forEach(function(el){
@@ -1179,7 +1188,7 @@ function wireEvents(root){
       }
       persistGames();
       state.addFlow = null; state.matchResult = null;
-      go("search");
+      go("regal");
       showToast(isNew ? "Hinzugefügt." : "Gespeichert.");
     });
   }
