@@ -15,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   --paper:#f7f5f2; --paper-raised:#fffdf9; --ink:#1c1a16; --ink-dim:#65605a;
@@ -480,14 +481,18 @@ function go(view, extra){
 var pushTimer = null;
 function scheduleAutoPush(){
   var nc = loadNC();
-  if(!nc.url) return;
+  var gd = loadGDrive();
+  if(!nc.url && !gd.fileId) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(function(){
-    pushToNextcloud();
-    /* Keeps the published tauschliste.json (if any games are marked
-       tauschbar) in step with every local edit - no separate manual
-       "veröffentlichen" step needed once Nextcloud is connected once. */
-    pushTauschlisteToNextcloud().catch(function(){});
+    if(nc.url){
+      pushToNextcloud();
+      /* Keeps the published tauschliste.json (if any games are marked
+         tauschbar) in step with every local edit - no separate manual
+         "veröffentlichen" step needed once Nextcloud is connected once. */
+      pushTauschlisteToNextcloud().catch(function(){});
+    }
+    if(gd.fileId){ pushToGDrive().catch(function(){}); }
   }, 1500);
 }
 function ncAuthHeader(nc){ return "Basic " + btoa(unescape(encodeURIComponent((nc.user||"")+":"+(nc.pass||"")))); }
@@ -503,14 +508,14 @@ function pushToNextcloud(){
   }).then(function(res){
     if(!res.ok) throw new Error("HTTP " + res.status);
     var meta = loadMeta();
-    meta.lastPush = Date.now();
-    meta.lastSyncedHash = hashStr(csv);
-    meta.lastError = null;
+    meta.ncLastPush = Date.now();
+    meta.ncLastSyncedHash = hashStr(csv);
+    meta.ncLastError = null;
     saveMeta(meta);
     if(state.view === "sync") render();
   }).catch(function(err){
     var meta = loadMeta();
-    meta.lastError = "Push fehlgeschlagen: " + err.message + " (evtl. CORS/Zugangsdaten prüfen)";
+    meta.ncLastError = "Push fehlgeschlagen: " + err.message + " (evtl. CORS/Zugangsdaten prüfen)";
     saveMeta(meta);
     if(state.view === "sync") render();
   });
@@ -532,11 +537,11 @@ function pullFromNextcloud(silent){
     })
     .then(function(text){
       var meta = loadMeta();
-      meta.lastPull = Date.now();
-      meta.lastError = null;
+      meta.ncLastPull = Date.now();
+      meta.ncLastError = null;
       saveMeta(meta);
       var remoteHash = hashStr(text);
-      if(remoteHash === meta.lastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
+      if(remoteHash === meta.ncLastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
       var parsed = parseCSV(text);
       if(!parsed.length){ if(!silent) showToast("Remote-Datei leer oder unlesbar."); return; }
       state.confirm = {
@@ -546,7 +551,7 @@ function pullFromNextcloud(silent){
         onOk: function(){
           state.games = parsed;
           persistGamesNoPush();
-          var m = loadMeta(); m.lastSyncedHash = remoteHash; saveMeta(m);
+          var m = loadMeta(); m.ncLastSyncedHash = remoteHash; saveMeta(m);
           go("regal");
           showToast("Von Nextcloud übernommen: " + parsed.length + " Spiele.");
         }
@@ -555,12 +560,143 @@ function pullFromNextcloud(silent){
     })
     .catch(function(err){
       var meta = loadMeta();
-      meta.lastError = "Abruf fehlgeschlagen: " + err.message + " (evtl. CORS/Zugangsdaten prüfen)";
+      meta.ncLastError = "Abruf fehlgeschlagen: " + err.message + " (evtl. CORS/Zugangsdaten prüfen)";
       saveMeta(meta);
-      if(!silent) showToast(meta.lastError);
+      if(!silent) showToast(meta.ncLastError);
       if(state.view === "sync") render();
     });
 }
+/* ---------------- Google Drive sync ----------------
+   Google Drive has no WebDAV/Basic-Auth endpoint, so this is a
+   separate path: OAuth (Google Identity Services token flow) instead
+   of a static app password, and the Drive REST API instead of PUT/GET
+   on a plain URL. The OAuth Client ID is the user's own - they must
+   create it themselves in Google Cloud Console (a Google account and
+   a few minutes of setup; we cannot create it on their behalf), and
+   it lives in localStorage like the Nextcloud settings do. The access
+   token itself is kept in memory only (not persisted) and requires a
+   real user gesture (the "Mit Google verbinden" click) to obtain, so
+   background pushes only work while that token is still valid. */
+var GDRIVE_KEY = "bigbox:gdrive:v1";
+function loadGDrive(){ try{ return JSON.parse(localStorage.getItem(GDRIVE_KEY)) || {}; }catch(e){ return {}; } }
+function saveGDrive(m){ try{ localStorage.setItem(GDRIVE_KEY, JSON.stringify(m)); }catch(e){} }
+
+var gdriveAccessToken = null;
+var gdriveTokenExpiry = 0;
+function gdriveConnect(){
+  var gd = loadGDrive();
+  if(!gd.clientId) return Promise.reject(new Error("Bitte zuerst deine Google-Client-ID eintragen und speichern."));
+  if(!window.google || !window.google.accounts || !window.google.accounts.oauth2){
+    return Promise.reject(new Error("Google-Anmeldung konnte nicht geladen werden (kein Internet beim Laden der Seite?)."));
+  }
+  return new Promise(function(resolve, reject){
+    try{
+      var client = google.accounts.oauth2.initTokenClient({
+        client_id: gd.clientId,
+        scope: "https://www.googleapis.com/auth/drive.file",
+        callback: function(resp){
+          if(resp && resp.access_token){
+            gdriveAccessToken = resp.access_token;
+            gdriveTokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
+            resolve(gdriveAccessToken);
+          } else {
+            reject(new Error("Google-Anmeldung abgebrochen oder fehlgeschlagen."));
+          }
+        },
+        error_callback: function(err){ reject(new Error("Google-Anmeldung fehlgeschlagen: " + (err && err.type ? err.type : "unbekannter Fehler"))); }
+      });
+      client.requestAccessToken();
+    }catch(e){ reject(e); }
+  });
+}
+function gdriveToken(){
+  if(gdriveAccessToken && Date.now() < gdriveTokenExpiry - 30000) return Promise.resolve(gdriveAccessToken);
+  return Promise.reject(new Error("Nicht mit Google verbunden (oder Anmeldung abgelaufen) – bitte „Mit Google verbinden“ antippen."));
+}
+function gdriveCreateFile(){
+  return gdriveToken().then(function(token){
+    var boundary = "bigboxsep";
+    var metadata = JSON.stringify({ name: "spiele.csv", mimeType: "text/csv" });
+    var body = "--"+boundary+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+metadata+
+      "\r\n--"+boundary+"\r\nContent-Type: text/csv\r\n\r\n"+toCSV(state.games)+
+      "\r\n--"+boundary+"--";
+    return fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+      method: "POST",
+      headers: { "Authorization": "Bearer "+token, "Content-Type": "multipart/related; boundary="+boundary },
+      body: body
+    });
+  }).then(function(res){
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return res.json();
+  }).then(function(data){
+    var gd = loadGDrive(); gd.fileId = data.id; saveGDrive(gd);
+    return data.id;
+  });
+}
+function pullFromGDrive(silent){
+  var gd = loadGDrive();
+  if(!gd.fileId) return Promise.resolve();
+  return gdriveToken().then(function(token){
+    return fetch("https://www.googleapis.com/drive/v3/files/"+gd.fileId+"?alt=media", { headers: { "Authorization": "Bearer "+token }, cache: "no-store" });
+  }).then(function(res){
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    return res.text();
+  }).then(function(text){
+    var meta = loadMeta();
+    meta.gdLastPull = Date.now();
+    meta.gdLastError = null;
+    saveMeta(meta);
+    var remoteHash = hashStr(text);
+    if(remoteHash === meta.gdLastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
+    var parsed = parseCSV(text);
+    if(!parsed.length){ if(!silent) showToast("Remote-Datei leer oder unlesbar."); return; }
+    state.confirm = {
+      title: "Neue Version auf Google Drive",
+      msg: "Die Datei auf Google Drive unterscheidet sich (" + parsed.length + " Spiele). Übernehmen und die " + state.games.length + " Spiele hier ersetzen?",
+      okLabel: "Übernehmen",
+      onOk: function(){
+        state.games = parsed;
+        persistGamesNoPush();
+        var m = loadMeta(); m.gdLastSyncedHash = remoteHash; saveMeta(m);
+        go("regal");
+        showToast("Von Google Drive übernommen: " + parsed.length + " Spiele.");
+      }
+    };
+    render();
+  }).catch(function(err){
+    var meta = loadMeta();
+    meta.gdLastError = "Abruf (Google Drive) fehlgeschlagen: " + err.message;
+    saveMeta(meta);
+    if(!silent) showToast(meta.gdLastError);
+    if(state.view === "sync") render();
+  });
+}
+function pushToGDrive(){
+  var gd = loadGDrive();
+  if(!gd.fileId) return Promise.resolve();
+  var csv = toCSV(state.games);
+  return gdriveToken().then(function(token){
+    return fetch("https://www.googleapis.com/upload/drive/v3/files/"+gd.fileId+"?uploadType=media", {
+      method: "PATCH",
+      headers: { "Authorization": "Bearer "+token, "Content-Type": "text/csv" },
+      body: csv
+    });
+  }).then(function(res){
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    var meta = loadMeta();
+    meta.gdLastPush = Date.now();
+    meta.gdLastSyncedHash = hashStr(csv);
+    meta.gdLastError = null;
+    saveMeta(meta);
+    if(state.view === "sync") render();
+  }).catch(function(err){
+    var meta = loadMeta();
+    meta.gdLastError = "Push (Google Drive) fehlgeschlagen: " + err.message;
+    saveMeta(meta);
+    if(state.view === "sync") render();
+  });
+}
+
 function persistGamesNoPush(){
   idbSet(GAMES_IDB_KEY, state.games).catch(function(err){
     showToast("Speichern fehlgeschlagen: " + (err && err.message ? err.message : err));
@@ -778,10 +914,15 @@ function viewSearch(){
 }
 function viewMore(){
   var nc = loadNC();
+  var gd = loadGDrive();
+  var syncStatus = nc.url && gd.fileId ? '<span class="sync-dot ok"></span>Nextcloud + Google Drive' :
+    nc.url ? '<span class="sync-dot ok"></span>Nextcloud verbunden' :
+    gd.fileId ? '<span class="sync-dot ok"></span>Google Drive verbunden' :
+    '<span class="sync-dot off"></span>Cloud einrichten / CSV-Datei';
   var html = '<div class="bar"><div class="eyebrow">Mehr</div><h1>Verwaltung</h1></div><div class="content">';
   html += '<div class="menu" style="margin-top:16px">'+
     '<div class="menu-item" data-tab="stats"><div><div class="t">Werte &amp; Bestand</div><div class="s">Statistik zu deiner Sammlung</div></div><div class="arrow">›</div></div>'+
-    '<div class="menu-item" data-tab="sync"><div><div class="t">Sync</div><div class="s">'+(nc.url? '<span class="sync-dot ok"></span>Nextcloud verbunden' : '<span class="sync-dot off"></span>Nextcloud einrichten / CSV-Datei')+'</div></div><div class="arrow">›</div></div>'+
+    '<div class="menu-item" data-tab="sync"><div><div class="t">Sync</div><div class="s">'+syncStatus+'</div></div><div class="arrow">›</div></div>'+
   '</div>';
   html += '<div class="pcnote" style="margin:0 16px">DOSBox/ScummVM-Zuordnung ist PC-spezifisch eingerichtet – hier siehst du nur, ob eines davon für ein Spiel aktiv ist, nicht die Pfade/Konfiguration. Sie bleiben beim Sync erhalten.</div>';
   html += '</div>' + renderTabbar();
@@ -821,10 +962,12 @@ function viewStats(){
 function viewSync(){
   var meta = loadMeta();
   var nc = loadNC();
+  var gd = loadGDrive();
   function fmtT(ts){ return ts ? new Date(ts).toLocaleString("de-DE") : "noch nie"; }
+
   var html = '<div class="backbar"><div class="iconbtn" data-tab="more">‹</div><div class="title">Sync</div><div class="spacer"></div></div><div class="sync-body">';
 
-  html += '<div class="sync-card"><h3>Nextcloud (WebDAV)</h3><p>Trägt Spiele bei jeder Änderung automatisch hoch und prüft beim Öffnen der App auf eine neuere Version vom PC. Zugangsdaten bleiben nur lokal auf diesem Gerät gespeichert.</p>';
+  html += '<div class="sync-card"><h3>WebDAV (Nextcloud, ownCloud &amp; Co.)</h3><p>Trägt Spiele bei jeder Änderung automatisch hoch und prüft beim Öffnen der App auf eine neuere Version vom PC. Funktioniert mit jedem WebDAV-fähigen Speicher – neben Nextcloud z. B. auch ownCloud, Seafile, pCloud, Koofr, Yandex.Disk oder Box. Zugangsdaten bleiben nur lokal auf diesem Gerät gespeichert.</p>';
   html += '<div class="form" style="padding:14px 0 0;gap:12px">'+
     '<div class="field"><div class="lb">WebDAV-Datei-URL</div><input type="url" id="nc_url" placeholder="https://cloud.example.com/remote.php/dav/files/DEINUSER/Sammlung/spiele.csv" value="'+esc(nc.url||"")+'"></div>'+
     '<div class="field"><div class="lb">Benutzername</div><input type="text" id="nc_user" value="'+esc(nc.user||"")+'"></div>'+
@@ -834,15 +977,33 @@ function viewSync(){
   html += '<div class="actions" style="margin-top:10px"><button class="btn ghost" id="ncPushNow"'+(nc.url?'':' disabled')+'>Eigenen Stand hochladen</button></div>';
   html += '<div class="pcnote" style="margin-top:12px">Abrufen und Hochladen laufen absichtlich nicht mehr automatisch nacheinander – erst nach deiner Bestätigung im "Neue Version"-Dialog wird etwas übernommen, damit nie versehentlich eine neuere Datei überschrieben wird.</div>';
   html += '<div class="sync-meta">'+
-    (meta.lastError ? '<span class="sync-dot bad"></span>'+esc(meta.lastError)+'<br>' : (nc.url ? '<span class="sync-dot ok"></span>Verbunden<br>' : '<span class="sync-dot off"></span>Nicht eingerichtet<br>'))+
-    'Letzter Push: '+fmtT(meta.lastPush)+' · Letzter Abruf: '+fmtT(meta.lastPull)+
+    (meta.ncLastError ? '<span class="sync-dot bad"></span>'+esc(meta.ncLastError)+'<br>' : (nc.url ? '<span class="sync-dot ok"></span>Verbunden<br>' : '<span class="sync-dot off"></span>Nicht eingerichtet<br>'))+
+    'Letzter Push: '+fmtT(meta.ncLastPush)+' · Letzter Abruf: '+fmtT(meta.ncLastPull)+
+  '</div></div>';
+
+  html += '<div class="sync-card"><h3>Google Drive</h3><p>Braucht eine eigene Google-Anmeldung statt Benutzername/Passwort. Dafür musst du dir einmalig eine eigene „OAuth-Client-ID" in der Google Cloud Console anlegen – kann ich dir Schritt für Schritt zeigen. Der Verbindungs-Zugriff hält je nach Google meist ca. 1 Stunde, danach musst du dich beim nächsten Öffnen der App neu verbinden (kein eigener Server hier, der das automatisch erneuern könnte).</p>';
+  html += '<div class="form" style="padding:14px 0 0;gap:12px">'+
+    '<div class="field"><div class="lb">Google OAuth-Client-ID</div><input type="text" id="gd_clientid" placeholder="xxxxxxxx.apps.googleusercontent.com" value="'+esc(gd.clientId||"")+'"></div>'+
+  '</div>';
+  html += '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="gdSaveId">Speichern</button><button class="btn primary" id="gdConnect">Mit Google verbinden</button></div>';
+  if(gd.fileId){
+    html += '<div class="actions" style="margin-top:10px"><button class="btn ghost" id="gdPullNow">Von Google Drive abrufen</button><button class="btn ghost" id="gdPushNow">Eigenen Stand hochladen</button></div>';
+  } else {
+    html += '<div class="actions" style="margin-top:10px"><button class="btn ghost" id="gdCreateFile">Neue Datei auf Google Drive anlegen</button></div>'+
+      '<div class="pcnote" style="margin-top:10px">Noch keine Datei verknüpft. Entweder hier eine neue „spiele.csv" auf deinem Drive anlegen lassen (mit dem aktuellen Stand hier auf dem Handy), oder – falls du schon eine spiele.csv auf Google Drive hast – deren Datei-ID aus dem Freigabelink eintragen (der Teil zwischen „/d/" und „/view").</div>'+
+      '<div class="field" style="margin-top:10px"><div class="lb">Vorhandene Datei-ID (optional)</div><input type="text" id="gd_fileid" placeholder="1AbCdefGHijkLmNoPQrstuVWxyz"></div>'+
+      '<button class="btn ghost full" style="margin-top:10px" id="gdUseFileId">Diese Datei-ID verwenden</button>';
+  }
+  html += '<div class="sync-meta">'+
+    (meta.gdLastError ? '<span class="sync-dot bad"></span>'+esc(meta.gdLastError)+'<br>' : (gd.fileId ? '<span class="sync-dot ok"></span>Verbunden<br>' : '<span class="sync-dot off"></span>Nicht eingerichtet<br>'))+
+    'Letzter Push: '+fmtT(meta.gdLastPush)+' · Letzter Abruf: '+fmtT(meta.gdLastPull)+
   '</div></div>';
 
   html += '<div class="sync-card"><h3>Manuell per CSV-Datei</h3><p>Alternative ohne Cloud: Datei exportieren und z. B. per AirDrop an den PC schicken, oder eine Datei vom PC importieren.</p>'+
     '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="btnExport">Exportieren</button><button class="btn ghost" id="btnImport">Importieren…</button></div>'+
     '<input type="file" accept=".csv,text/csv" class="filepick" id="filePick"></div>';
 
-  html += '<div class="pcnote">Hinweis: Ob dein Nextcloud-Server browserseitige Anfragen (CORS) von dieser Seite erlaubt, hängt von seiner Konfiguration ab – das konnte ich vorab nicht testen. Schlägt es fehl, hilft meist eine CORS-Freigabe für diese Seite auf dem Nextcloud-Server.</div>';
+  html += '<div class="pcnote">Hinweis: Ob dein WebDAV-Speicher browserseitige Anfragen (CORS) von dieser Seite erlaubt, hängt von seiner Konfiguration ab – das konnte ich vorab nicht testen. Schlägt es fehl, hilft meist eine CORS-Freigabe für diese Seite auf dem Server (bei Nextcloud z. B. über die „Custom CORS"-App).</div>';
   html += '</div>';
   return html;
 }
@@ -1237,6 +1398,67 @@ function wireEvents(root){
     ncPushNow.addEventListener("click", function(){
       showToast("Lade hoch…");
       pushToNextcloud().then(function(){ showToast("Hochgeladen."); render(); })
+        .catch(function(err){ showToast("Hochladen fehlgeschlagen: " + err.message); });
+    });
+  }
+
+  /* Google Drive */
+  var gdSaveId = document.getElementById("gdSaveId");
+  if(gdSaveId){
+    gdSaveId.addEventListener("click", function(){
+      var gd = loadGDrive();
+      gd.clientId = document.getElementById("gd_clientid").value.trim();
+      saveGDrive(gd);
+      showToast("Client-ID gespeichert.");
+    });
+  }
+  var gdConnect = document.getElementById("gdConnect");
+  if(gdConnect){
+    gdConnect.addEventListener("click", function(){
+      /* requestAccessToken() opens a popup and must stay inside this
+         click handler's call stack, same reasoning as the camera fix -
+         no render()/await before it. */
+      var gd = loadGDrive();
+      gd.clientId = document.getElementById("gd_clientid").value.trim();
+      saveGDrive(gd);
+      gdriveConnect().then(function(){
+        showToast("Mit Google verbunden.");
+        render();
+      }).catch(function(err){ showToast(err.message); });
+    });
+  }
+  var gdCreateFile = document.getElementById("gdCreateFile");
+  if(gdCreateFile){
+    gdCreateFile.addEventListener("click", function(){
+      showToast("Lege Datei an…");
+      gdriveCreateFile().then(function(){
+        showToast("Datei auf Google Drive angelegt und verknüpft.");
+        render();
+      }).catch(function(err){ showToast("Fehlgeschlagen: " + err.message); });
+    });
+  }
+  var gdUseFileId = document.getElementById("gdUseFileId");
+  if(gdUseFileId){
+    gdUseFileId.addEventListener("click", function(){
+      var id = document.getElementById("gd_fileid").value.trim();
+      if(!id){ showToast("Bitte eine Datei-ID eintragen."); return; }
+      var gd = loadGDrive(); gd.fileId = id; saveGDrive(gd);
+      showToast("Verknüpft.");
+      render();
+    });
+  }
+  var gdPullNow = document.getElementById("gdPullNow");
+  if(gdPullNow){
+    gdPullNow.addEventListener("click", function(){
+      showToast("Rufe ab…");
+      pullFromGDrive(false);
+    });
+  }
+  var gdPushNow = document.getElementById("gdPushNow");
+  if(gdPushNow){
+    gdPushNow.addEventListener("click", function(){
+      showToast("Lade hoch…");
+      pushToGDrive().then(function(){ showToast("Hochgeladen."); render(); })
         .catch(function(err){ showToast("Hochladen fehlgeschlagen: " + err.message); });
     });
   }
