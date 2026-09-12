@@ -790,7 +790,9 @@ function viewSync(){
     '<div class="field"><div class="lb">Benutzername</div><input type="text" id="nc_user" value="'+esc(nc.user||"")+'"></div>'+
     '<div class="field"><div class="lb">App-Passwort</div><div style="display:flex;gap:8px"><input type="password" id="nc_pass" style="flex:1" value="'+esc(nc.pass||"")+'"><button type="button" class="btn ghost" style="flex:none;padding:11px 14px" id="ncTogglePass">👁</button></div></div>'+
   '</div>';
-  html += '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="ncSave">Speichern</button><button class="btn primary" id="ncSyncNow"'+(nc.url?'':' disabled')+'>Jetzt synchronisieren</button></div>';
+  html += '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="ncSave">Speichern</button><button class="btn primary" id="ncPullNow"'+(nc.url?'':' disabled')+'>Vom PC abrufen</button></div>';
+  html += '<div class="actions" style="margin-top:10px"><button class="btn ghost" id="ncPushNow"'+(nc.url?'':' disabled')+'>Eigenen Stand hochladen</button></div>';
+  html += '<div class="pcnote" style="margin-top:12px">Abrufen und Hochladen laufen absichtlich nicht mehr automatisch nacheinander – erst nach deiner Bestätigung im "Neue Version"-Dialog wird etwas übernommen, damit nie versehentlich eine neuere Datei überschrieben wird.</div>';
   html += '<div class="sync-meta">'+
     (meta.lastError ? '<span class="sync-dot bad"></span>'+esc(meta.lastError)+'<br>' : (nc.url ? '<span class="sync-dot ok"></span>Verbunden<br>' : '<span class="sync-dot off"></span>Nicht eingerichtet<br>'))+
     'Letzter Push: '+fmtT(meta.lastPush)+' · Letzter Abruf: '+fmtT(meta.lastPull)+
@@ -1197,11 +1199,19 @@ function wireEvents(root){
       if(nc.url) pullFromNextcloud(true);
     });
   }
-  var ncSyncNow = document.getElementById("ncSyncNow");
-  if(ncSyncNow){
-    ncSyncNow.addEventListener("click", function(){
-      showToast("Synchronisiere…");
-      pullFromNextcloud(false).then(function(){ return pushToNextcloud(); });
+  var ncPullNow = document.getElementById("ncPullNow");
+  if(ncPullNow){
+    ncPullNow.addEventListener("click", function(){
+      showToast("Rufe ab…");
+      pullFromNextcloud(false);
+    });
+  }
+  var ncPushNow = document.getElementById("ncPushNow");
+  if(ncPushNow){
+    ncPushNow.addEventListener("click", function(){
+      showToast("Lade hoch…");
+      pushToNextcloud().then(function(){ showToast("Hochgeladen."); render(); })
+        .catch(function(err){ showToast("Hochladen fehlgeschlagen: " + err.message); });
     });
   }
 
