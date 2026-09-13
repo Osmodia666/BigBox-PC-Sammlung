@@ -54,6 +54,7 @@ type
     btnBearbeiten: TBitBtn;
     btnLoeschen: TBitBtn;
     btnRegal: TButton;
+    btnEinstellungen: TButton;
     lblGesamtwert: TLabel;
     lblSpieleAnzahl: TLabel;
     StringGrid1: TStringGrid;
@@ -94,6 +95,7 @@ type
     procedure MarqueeTimerTimer(Sender: TObject);
     function CellTextOverflows(ACol, ARow: Integer; out Overflow: Integer): Boolean;
     procedure btnRegalClick(Sender: TObject);
+    procedure btnEinstellungenClick(Sender: TObject);
     procedure btnStartGameClick(Sender: TObject);
     procedure ApplyShelfMode;
     procedure pbShelfPaint(Sender: TObject);
@@ -168,7 +170,7 @@ implementation
 
 {$R *.lfm}
 
-uses Unit2;
+uses Unit2, Unit5, AppSettings;
 
 { TForm1 }
 
@@ -252,6 +254,8 @@ begin
   CSVPath := ExtractFilePath(Application.ExeName) + 'spiele.csv';
   if not FileExists(CSVPath) then
     CSVPath := 'C:\Users\chris\Documents\Default Project\spiele.csv';
+
+  AppSettings.LoadAppSettings(ExtractFilePath(CSVPath) + 'settings.ini');
 
   LoadCSV(CSVPath);
 
@@ -1752,6 +1756,13 @@ procedure TForm1.btnRegalClick(Sender: TObject);
 begin
   ShelfMode := not ShelfMode;
   ApplyShelfMode;
+end;
+
+procedure TForm1.btnEinstellungenClick(Sender: TObject);
+begin
+  if ShowSettings(AppSettings.RawgApiKey, AppSettings.IgdbClientId,
+       AppSettings.IgdbClientSecret) then
+    AppSettings.SaveAppSettings(ExtractFilePath(CSVPath) + 'settings.ini');
 end;
 
 function TForm1.ShelfIndexAtPoint(X, Y: Integer): Integer;

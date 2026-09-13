@@ -229,10 +229,13 @@ var META_KEY = "bigbox:meta:v2";
 var NC_KEY = "bigbox:nextcloud:v1";
 var FRIENDS_KEY = "bigbox:friends:v1";
 var PROFILE_KEY = "bigbox:profile:v1";
+var APIKEYS_KEY = "bigbox:apikeys:v1";
 
-var RAWG_API_KEY = "e2064b227d2b4bfe859e025d1253553b";
-var IGDB_CLIENT_ID = "s0r5nobvuvpljlt3kwjh45lxhaa6zy";
-var IGDB_CLIENT_SECRET = "96ozallbtkxuczscac7xn5w2odnael";
+/* No key is baked into the page - each person who opens this site
+   brings their own free RAWG/Twitch keys (Mehr -> API-Schlüssel), so
+   nothing secret ever sits in this public GitHub Pages source. */
+function loadApiKeys(){ try{ return JSON.parse(localStorage.getItem(APIKEYS_KEY)) || {}; }catch(e){ return {}; } }
+function saveApiKeys(k){ try{ localStorage.setItem(APIKEYS_KEY, JSON.stringify(k)); }catch(e){} }
 
 function slug(s){ return String(s||"").trim().toLowerCase(); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -705,12 +708,14 @@ function persistGamesNoPush(){
 
 /* ---------------- RAWG / IGDB (mirrors RawgApi.pas / IgdbApi.pas) ---------------- */
 function rawgFetchGameData(name){
-  var searchUrl = "https://api.rawg.io/api/games?key=" + RAWG_API_KEY + "&search=" + encodeURIComponent(name) + "&page_size=1";
+  var keys = loadApiKeys();
+  if(!keys.rawgKey) return Promise.reject(new Error("Kein RAWG-API-Key eingetragen (Mehr → API-Schlüssel)."));
+  var searchUrl = "https://api.rawg.io/api/games?key=" + keys.rawgKey + "&search=" + encodeURIComponent(name) + "&page_size=1";
   return fetch(searchUrl).then(function(r){ if(!r.ok) throw new Error("RAWG Suche: HTTP "+r.status); return r.json(); })
     .then(function(data){
       var hit = data.results && data.results[0];
       if(!hit) throw new Error("Kein Treffer bei RAWG.");
-      var detailUrl = "https://api.rawg.io/api/games/" + hit.id + "?key=" + RAWG_API_KEY;
+      var detailUrl = "https://api.rawg.io/api/games/" + hit.id + "?key=" + keys.rawgKey;
       return fetch(detailUrl).then(function(r){ if(!r.ok) throw new Error("RAWG Details: HTTP "+r.status); return r.json(); });
     })
     .then(function(d){
@@ -723,16 +728,19 @@ function rawgFetchGameData(name){
     });
 }
 function igdbGetToken(){
-  var url = "https://id.twitch.tv/oauth2/token?client_id=" + IGDB_CLIENT_ID + "&client_secret=" + IGDB_CLIENT_SECRET + "&grant_type=client_credentials";
+  var keys = loadApiKeys();
+  if(!keys.igdbClientId || !keys.igdbClientSecret) return Promise.reject(new Error("Keine IGDB Client-ID/Secret eingetragen (Mehr → API-Schlüssel)."));
+  var url = "https://id.twitch.tv/oauth2/token?client_id=" + keys.igdbClientId + "&client_secret=" + keys.igdbClientSecret + "&grant_type=client_credentials";
   return fetch(url, { method: "POST" }).then(function(r){ if(!r.ok) throw new Error("Twitch-Login: HTTP "+r.status); return r.json(); })
     .then(function(d){ if(!d.access_token) throw new Error("Kein access_token von Twitch."); return d.access_token; });
 }
 function igdbFetchCoverURL(name){
+  var keys = loadApiKeys();
   return igdbGetToken().then(function(token){
     var body = 'search "' + name.replace(/"/g,'\\"') + '"; fields name,cover.image_id; limit 1;';
     return fetch("https://api.igdb.com/v4/games", {
       method: "POST",
-      headers: { "Client-ID": IGDB_CLIENT_ID, "Authorization": "Bearer " + token, "Content-Type": "text/plain" },
+      headers: { "Client-ID": keys.igdbClientId, "Authorization": "Bearer " + token, "Content-Type": "text/plain" },
       body: body
     });
   }).then(function(r){ if(!r.ok) throw new Error("IGDB Suche: HTTP "+r.status); return r.json(); })
@@ -815,7 +823,7 @@ function renderTabbar(){
     {id:"more", ic:"≡", lb:"Mehr"}
   ];
   return '<div class="tabbar"><div class="tabbar-inner">' + tabs.map(function(t){
-    var active = (state.view===t.id) || (t.id==="more" && (state.view==="stats" || state.view==="sync"));
+    var active = (state.view===t.id) || (t.id==="more" && (state.view==="stats" || state.view==="sync" || state.view==="apikeys"));
     return '<button class="tab'+(active?' active':'')+'" data-tab="'+t.id+'"><span class="ic">'+t.ic+'</span><span class="lb">'+t.lb+'</span></button>';
   }).join('') + '<button class="fab" data-newgame="1" aria-label="Box erfassen">+</button></div></div>';
 }
@@ -923,6 +931,7 @@ function viewMore(){
   html += '<div class="menu" style="margin-top:16px">'+
     '<div class="menu-item" data-tab="stats"><div><div class="t">Werte &amp; Bestand</div><div class="s">Statistik zu deiner Sammlung</div></div><div class="arrow">›</div></div>'+
     '<div class="menu-item" data-tab="sync"><div><div class="t">Sync</div><div class="s">'+syncStatus+'</div></div><div class="arrow">›</div></div>'+
+    '<div class="menu-item" data-tab="apikeys"><div><div class="t">API-Schlüssel</div><div class="s">RAWG / IGDB für den Online-Abgleich</div></div><div class="arrow">›</div></div>'+
   '</div>';
   html += '<div class="pcnote" style="margin:0 16px">DOSBox/ScummVM-Zuordnung ist PC-spezifisch eingerichtet – hier siehst du nur, ob eines davon für ein Spiel aktiv ist, nicht die Pfade/Konfiguration. Sie bleiben beim Sync erhalten.</div>';
   html += '</div>' + renderTabbar();
@@ -1004,6 +1013,26 @@ function viewSync(){
     '<input type="file" accept=".csv,text/csv" class="filepick" id="filePick"></div>';
 
   html += '<div class="pcnote">Hinweis: Ob dein WebDAV-Speicher browserseitige Anfragen (CORS) von dieser Seite erlaubt, hängt von seiner Konfiguration ab – das konnte ich vorab nicht testen. Schlägt es fehl, hilft meist eine CORS-Freigabe für diese Seite auf dem Server (bei Nextcloud z. B. über die „Custom CORS"-App).</div>';
+  html += '</div>';
+  return html;
+}
+function viewApiKeys(){
+  var keys = loadApiKeys();
+  var html = '<div class="backbar"><div class="iconbtn" data-tab="more">‹</div><div class="title">API-Schlüssel</div><div class="spacer"></div></div><div class="sync-body">';
+
+  html += '<div class="sync-card"><h3>RAWG</h3><p>Liefert Jahr/Entwickler/Publisher beim "Bei RAWG/IGDB suchen"-Abgleich. Kostenlos unter <span class="mono">rawg.io/apidocs</span> registrieren, keine Zahlungsdaten nötig.</p>'+
+    '<div class="form" style="padding:12px 0 0;gap:10px"><div class="field"><div class="lb">API-Key</div><input type="text" id="ak_rawg" value="'+esc(keys.rawgKey||"")+'"></div></div>'+
+  '</div>';
+
+  html += '<div class="sync-card"><h3>IGDB / Twitch</h3><p>Liefert das Cover beim Online-Abgleich. Braucht ein kostenloses Twitch-Entwicklerkonto unter <span class="mono">dev.twitch.tv/console/apps</span> → "Registrieren": Name frei wählbar, OAuth Redirect URL z. B. <span class="mono">http://localhost</span>. Die Client-ID wird direkt angezeigt, für das Secret "Neues Secret erstellen" antippen.</p>'+
+    '<div class="form" style="padding:12px 0 0;gap:10px">'+
+    '<div class="field"><div class="lb">Client-ID</div><input type="text" id="ak_igdbid" value="'+esc(keys.igdbClientId||"")+'"></div>'+
+    '<div class="field"><div class="lb">Client-Secret</div><div style="display:flex;gap:8px"><input type="password" id="ak_igdbsecret" style="flex:1" value="'+esc(keys.igdbClientSecret||"")+'"><button type="button" class="btn ghost" style="flex:none;padding:11px 14px" id="akToggleSecret">👁</button></div></div>'+
+    '</div>'+
+  '</div>';
+
+  html += '<button class="btn primary full" style="margin:0 16px 16px;width:calc(100% - 32px)" id="akSave">Speichern</button>';
+  html += '<div class="pcnote">Diese Schlüssel sind nur lokal auf diesem Gerät gespeichert – nicht Teil der Sync-Datei, werden also nicht automatisch mit dem PC oder anderen Geräten geteilt. Jeder, der diese Seite nutzt, trägt seine eigenen (kostenlosen) Schlüssel ein. In der Lazarus-App findest du dasselbe unter „Einstellungen…" im Hauptfenster.</div>';
   html += '</div>';
   return html;
 }
@@ -1150,6 +1179,7 @@ function render(){
     case "more": html = viewMore(); break;
     case "stats": html = viewStats(); break;
     case "sync": html = viewSync(); break;
+    case "apikeys": html = viewApiKeys(); break;
     case "wishlist": html = viewWishlist(); break;
     case "edit": html = viewEdit(); break;
     default: html = viewRegal();
@@ -1460,6 +1490,26 @@ function wireEvents(root){
       showToast("Lade hoch…");
       pushToGDrive().then(function(){ showToast("Hochgeladen."); render(); })
         .catch(function(err){ showToast("Hochladen fehlgeschlagen: " + err.message); });
+    });
+  }
+
+  /* API-Schlüssel (RAWG/IGDB) */
+  var akToggleSecret = document.getElementById("akToggleSecret");
+  if(akToggleSecret){
+    akToggleSecret.addEventListener("click", function(){
+      var f = document.getElementById("ak_igdbsecret");
+      f.type = f.type === "password" ? "text" : "password";
+    });
+  }
+  var akSave = document.getElementById("akSave");
+  if(akSave){
+    akSave.addEventListener("click", function(){
+      saveApiKeys({
+        rawgKey: document.getElementById("ak_rawg").value.trim(),
+        igdbClientId: document.getElementById("ak_igdbid").value.trim(),
+        igdbClientSecret: document.getElementById("ak_igdbsecret").value.trim()
+      });
+      showToast("Gespeichert.");
     });
   }
 

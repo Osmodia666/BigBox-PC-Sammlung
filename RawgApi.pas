@@ -6,12 +6,11 @@ interface
 
 uses
   Classes, SysUtils, fphttpclient, openssl, opensslsockets, httpprotocol,
-  fpjson, jsonparser;
+  fpjson, jsonparser, AppSettings;
 
-const
-  { Kostenlosen Key holen unter https://rawg.io/apidocs (kurze Registrierung,
-    kein Zahlungsmittel noetig) und hier eintragen. }
-  RAWG_API_KEY = 'e2064b227d2b4bfe859e025d1253553b';
+{ Kostenlosen Key holen unter https://rawg.io/apidocs (kurze Registrierung,
+  kein Zahlungsmittel noetig) und unter "Einstellungen..." im Hauptfenster
+  eintragen - AppSettings.RawgApiKey wird von dort aus geladen/gespeichert. }
 
 { Sucht das Spiel bei RAWG und liefert Jahr/Entwickler/Publisher/Cover-URL.
   Liefert False bei Fehler oder wenn nichts gefunden wurde; ErrorMsg
@@ -97,13 +96,13 @@ begin
   Result := False;
   Jahr := ''; Entwickler := ''; Publisher := ''; CoverURL := ''; ErrorMsg := '';
 
-  if Trim(RAWG_API_KEY) = '' then
+  if Trim(AppSettings.RawgApiKey) = '' then
   begin
-    ErrorMsg := 'Kein RAWG-API-Key eingetragen (siehe RawgApi.pas).';
+    ErrorMsg := 'Kein RAWG-API-Key eingetragen (siehe "Einstellungen..." im Hauptfenster).';
     Exit;
   end;
 
-  SearchURL := 'https://api.rawg.io/api/games?key=' + RAWG_API_KEY +
+  SearchURL := 'https://api.rawg.io/api/games?key=' + AppSettings.RawgApiKey +
                '&search=' + HTTPEncode(GameName) + '&page_size=1';
 
   if not HttpGetText(SearchURL, ResponseText, ErrorMsg) then
@@ -158,7 +157,7 @@ begin
   end;
 
   DetailURL := 'https://api.rawg.io/api/games/' + IntToStr(GameId) +
-               '?key=' + RAWG_API_KEY;
+               '?key=' + AppSettings.RawgApiKey;
 
   if not HttpGetText(DetailURL, ResponseText, ErrorMsg) then
   begin

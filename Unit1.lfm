@@ -4730,6 +4730,15 @@ object Form1: TForm1
       TabOrder = 3
       OnClick = btnRegalClick
     end
+    object btnEinstellungen: TButton
+      Left = 950
+      Height = 30
+      Top = 8
+      Width = 150
+      Caption = 'Einstellungen...'
+      TabOrder = 4
+      OnClick = btnEinstellungenClick
+    end
     object lblSpieleAnzahl: TLabel
       Left = 448
       Height = 30

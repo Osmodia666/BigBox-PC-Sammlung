@@ -5,18 +5,17 @@ unit IgdbApi;
 interface
 
 uses
-  Classes, SysUtils, fphttpclient, openssl, opensslsockets, fpjson, jsonparser;
+  Classes, SysUtils, fphttpclient, openssl, opensslsockets, fpjson, jsonparser,
+  AppSettings;
 
-const
-  { Kostenloses Twitch-Entwicklerkonto noetig (IGDB gehoert zu Twitch):
-    1. https://dev.twitch.tv/console/apps  ->  "Registrieren"
-    2. Name frei waehlbar, OAuth Redirect URL z.B. http://localhost,
-       Kategorie "Application Integration" oder "Website Integration"
-    3. Client-ID wird direkt angezeigt; "Neues Secret erstellen" fuers
-       Client-Secret
-    Beides unten eintragen. }
-  IGDB_CLIENT_ID = 's0r5nobvuvpljlt3kwjh45lxhaa6zy';
-  IGDB_CLIENT_SECRET = '96ozallbtkxuczscac7xn5w2odnael';
+{ Kostenloses Twitch-Entwicklerkonto noetig (IGDB gehoert zu Twitch):
+  1. https://dev.twitch.tv/console/apps  ->  "Registrieren"
+  2. Name frei waehlbar, OAuth Redirect URL z.B. http://localhost,
+     Kategorie "Application Integration" oder "Website Integration"
+  3. Client-ID wird direkt angezeigt; "Neues Secret erstellen" fuers
+     Client-Secret
+  Beides unter "Einstellungen..." im Hauptfenster eintragen -
+  AppSettings.IgdbClientId/IgdbClientSecret werden von dort geladen. }
 
 { Sucht bei IGDB gezielt nach dem Box-Cover (nicht Screenshot/Artwork) und
   liefert eine fertige Bild-URL in hoher Aufloesung. }
@@ -72,14 +71,14 @@ begin
   Token := '';
   ErrorMsg := '';
 
-  if (Trim(IGDB_CLIENT_ID) = '') or (Trim(IGDB_CLIENT_SECRET) = '') then
+  if (Trim(AppSettings.IgdbClientId) = '') or (Trim(AppSettings.IgdbClientSecret) = '') then
   begin
-    ErrorMsg := 'Keine IGDB Client-ID/Secret eingetragen (siehe IgdbApi.pas).';
+    ErrorMsg := 'Keine IGDB Client-ID/Secret eingetragen (siehe "Einstellungen..." im Hauptfenster).';
     Exit;
   end;
 
-  URL := 'https://id.twitch.tv/oauth2/token?client_id=' + IGDB_CLIENT_ID +
-         '&client_secret=' + IGDB_CLIENT_SECRET + '&grant_type=client_credentials';
+  URL := 'https://id.twitch.tv/oauth2/token?client_id=' + AppSettings.IgdbClientId +
+         '&client_secret=' + AppSettings.IgdbClientSecret + '&grant_type=client_credentials';
 
   Client := TFPHTTPClient.Create(nil);
   try
@@ -159,7 +158,7 @@ begin
   Body := 'search "' + EscapedName + '"; fields name,cover.image_id; limit 1;';
 
   if not HttpPostText('https://api.igdb.com/v4/games', Body,
-       IGDB_CLIENT_ID, Token, ResponseText, ErrorMsg) then
+       AppSettings.IgdbClientId, Token, ResponseText, ErrorMsg) then
   begin
     ErrorMsg := 'Netzwerkfehler bei der IGDB-Suche: ' + ErrorMsg;
     Exit;
