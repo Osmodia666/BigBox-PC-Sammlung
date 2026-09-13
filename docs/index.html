@@ -1012,6 +1012,12 @@ function viewSync(){
     '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="btnExport">Exportieren</button><button class="btn ghost" id="btnImport">Importieren…</button></div>'+
     '<input type="file" accept=".csv,text/csv" class="filepick" id="filePick"></div>';
 
+  html += '<div class="sync-card"><h3>Einstellungen sichern &amp; wiederherstellen</h3><p>API-Schlüssel, Cloud-Zugangsdaten und Freundesliste liegen nur lokal in diesem Browser – beim Löschen von Cookies/Website-Daten sind sie weg (genau wie eine nicht per Cloud gesicherte Spielesammlung). Mit „Sichern" lädst du eine kleine Backup-Datei herunter, die du z. B. selbst irgendwo ablegst; mit „Wiederherstellen" spielst du sie nach einem Datenverlust wieder ein.</p>'+
+    '<div class="actions" style="margin-top:14px"><button class="btn ghost" id="btnExportSettings">Sichern</button><button class="btn ghost" id="btnImportSettings">Wiederherstellen…</button></div>'+
+    '<input type="file" accept=".json,application/json" class="filepick" id="filePickSettings">'+
+    '<div class="pcnote" style="margin-top:12px">Diese Datei enthält Klartext-Zugangsdaten (u. a. dein Nextcloud-Passwort) – bewusst NICHT Teil der Spiele-CSV, damit sie nicht versehentlich mit Freunden geteilt oder auf Nextcloud hochgeladen wird. Bitte entsprechend privat aufbewahren.</div>'+
+  '</div>';
+
   html += '<div class="pcnote">Hinweis: Ob dein WebDAV-Speicher browserseitige Anfragen (CORS) von dieser Seite erlaubt, hängt von seiner Konfiguration ab – das konnte ich vorab nicht testen. Schlägt es fehl, hilft meist eine CORS-Freigabe für diese Seite auf dem Server (bei Nextcloud z. B. über die „Custom CORS"-App).</div>';
   html += '</div>';
   return html;
@@ -1395,6 +1401,55 @@ function wireEvents(root){
       };
       reader.readAsText(file, "utf-8");
       filePick.value = "";
+    });
+  }
+
+  /* Settings backup/restore (API keys, Nextcloud/Google Drive credentials, friends, profile) */
+  var btnExportSettings = document.getElementById("btnExportSettings");
+  if(btnExportSettings){
+    btnExportSettings.addEventListener("click", function(){
+      var gd = loadGDrive();
+      var backup = {
+        type: "bigbox-settings-backup", version: 1, exportedAt: new Date().toISOString(),
+        apikeys: loadApiKeys(), nextcloud: loadNC(),
+        gdrive: { clientId: gd.clientId||"", fileId: gd.fileId||"" },
+        profile: loadProfile(), friends: loadFriends()
+      };
+      var blob = new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"});
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "bigbox-einstellungen.json";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      showToast("Einstellungen gesichert.");
+    });
+  }
+  var btnImportSettings = document.getElementById("btnImportSettings");
+  var filePickSettings = document.getElementById("filePickSettings");
+  if(btnImportSettings && filePickSettings){
+    btnImportSettings.addEventListener("click", function(){ filePickSettings.click(); });
+    filePickSettings.addEventListener("change", function(){
+      var file = filePickSettings.files && filePickSettings.files[0];
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(){
+        var data;
+        try{ data = JSON.parse(String(reader.result)); }catch(e){ data = null; }
+        if(!data || data.type !== "bigbox-settings-backup"){ showToast("Keine gültige Einstellungen-Sicherung."); return; }
+        state.confirm = { title:"Einstellungen wiederherstellen?", msg:"Überschreibt API-Schlüssel, Nextcloud-/Google-Drive-Zugangsdaten, Profil und Freundesliste auf diesem Gerät mit dem Stand aus der Sicherung.", okLabel:"Wiederherstellen",
+          onOk:function(){
+            if(data.apikeys) saveApiKeys(data.apikeys);
+            if(data.nextcloud) saveNC(data.nextcloud);
+            if(data.gdrive) saveGDrive({ clientId: data.gdrive.clientId||"", fileId: data.gdrive.fileId||"" });
+            if(data.profile) saveProfile(data.profile);
+            if(data.friends) saveFriends(data.friends);
+            showToast("Einstellungen wiederhergestellt.");
+            go("more");
+          } };
+        render();
+      };
+      reader.readAsText(file, "utf-8");
+      filePickSettings.value = "";
     });
   }
 
