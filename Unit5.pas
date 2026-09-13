@@ -5,7 +5,7 @@ unit Unit5;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls;
+  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, LCLIntf;
 
 type
   { Rueckruf fuer die Sync-Aktionen im Einstellungsdialog: bekommt die
@@ -33,6 +33,7 @@ type
     btnPull: TButton;
     btnPush: TButton;
     lblSyncStatus: TLabel;
+    lblDonate: TLabel;
     btnOK: TButton;
     btnCancel: TButton;
     procedure btnToggleSecretClick(Sender: TObject);
@@ -41,6 +42,7 @@ type
     procedure btnNewCSVClick(Sender: TObject);
     procedure btnPullClick(Sender: TObject);
     procedure btnPushClick(Sender: TObject);
+    procedure lblDonateClick(Sender: TObject);
   public
     CurrentCSVPath: String;
     PullFunc: TNcSyncFunc;
@@ -135,6 +137,11 @@ begin
   if not Assigned(PushFunc) then Exit;
   PushFunc(edtNcUrl.Text, edtNcUser.Text, edtNcPass.Text, StatusMsg);
   lblSyncStatus.Caption := StatusMsg;
+end;
+
+procedure TSettingsForm.lblDonateClick(Sender: TObject);
+begin
+  OpenURL('https://paypal.me/ChristopherStein');
 end;
 
 function ShowSettings(var ARawgApiKey, AIgdbClientId, AIgdbClientSecret,
@@ -292,6 +299,16 @@ begin
     F.lblSyncStatus.Height := 34;
     F.lblSyncStatus.Font.Color := clNavy;
     TopY += 40;
+
+    F.lblDonate := TLabel.Create(F);
+    F.lblDonate.Parent := F;
+    F.lblDonate.SetBounds(20, TopY, 440, 20);
+    F.lblDonate.Caption := '💛 Gefällt dir die App? Spende via PayPal (paypal.me/ChristopherStein)';
+    F.lblDonate.Font.Color := clBlue;
+    F.lblDonate.Font.Style := [fsUnderline];
+    F.lblDonate.Cursor := crHandPoint;
+    F.lblDonate.OnClick := @F.lblDonateClick;
+    TopY += 32;
 
     F.btnOK := TButton.Create(F);
     F.btnOK.Parent := F;
