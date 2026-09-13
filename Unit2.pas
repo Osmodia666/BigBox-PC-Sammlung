@@ -11,7 +11,7 @@ uses
 function ShowEditGame(var AName, ASprache, AMedium, AZustand, AInhalt,
   AVollstaendig, APublisher, AJahr, AEntwickler, APlattform, ACoverBase64,
   ACoverExt, AWert, AGenre, AExePath, AUseDosBox, ADosBoxConfig, AUseScummVM,
-  AScummVMPath: String; const ATitle: String): Boolean;
+  AScummVMPath, ATauschbar: String; const ATitle: String): Boolean;
 
 type
   { TEditGameForm }
@@ -31,6 +31,7 @@ type
     edtEntwickler: TEdit;
     rbPlatPC: TRadioButton;
     rbPlatAmiga: TRadioButton;
+    chkTauschbar: TCheckBox;
     cmbGenre: TComboBox;
     edtExePath: TEdit;
     btnExeBrowse: TButton;
@@ -284,7 +285,7 @@ end;
 function ShowEditGame(var AName, ASprache, AMedium, AZustand, AInhalt,
   AVollstaendig, APublisher, AJahr, AEntwickler, APlattform, ACoverBase64,
   ACoverExt, AWert, AGenre, AExePath, AUseDosBox, ADosBoxConfig, AUseScummVM,
-  AScummVMPath: String; const ATitle: String): Boolean;
+  AScummVMPath, ATauschbar: String; const ATitle: String): Boolean;
 var
   F: TEditGameForm;
   TopY: Integer;
@@ -374,7 +375,7 @@ begin
   try
     F.Caption := ATitle;
     F.Width := 530;
-    F.Height := 890; // war 850 - Platz fuer den zusaetzlichen ScummVM-Button
+    F.Height := 922; // war 890 - Platz fuer die zusaetzliche Tauschbar-Checkbox
     F.Position := poScreenCenter;
     F.BorderStyle := bsToolWindow; // wie vorher, nur ohne Groessenaenderung
     F.SelectedCoverBase64 := ACoverBase64;
@@ -433,6 +434,14 @@ begin
     AddField('Inhalt:', AInhalt, F.edtInhalt);
     AddRadio2('Vollständig:', 'Ja', 'Nein', SameText(AVollstaendig, 'Nein'),
       F.rbVollJa, F.rbVollNein);
+
+    F.chkTauschbar := TCheckBox.Create(F);
+    F.chkTauschbar.Parent := F.ScrollBox;
+    F.chkTauschbar.SetBounds(120, TopY, 340, 22);
+    F.chkTauschbar.Caption := 'Tauschbar (für die Tauschbörse/Freundesliste)';
+    F.chkTauschbar.Checked := SameText(Trim(ATauschbar), 'Ja');
+    TopY += 32;
+
     AddField('Publisher:', APublisher, F.edtPublisher);
     AddField('Jahr:', AJahr, F.edtJahr);
     F.edtJahr.MaxLength := 4;
@@ -526,6 +535,10 @@ begin
         AVollstaendig := 'Nein'
       else
         AVollstaendig := 'Ja';
+      if F.chkTauschbar.Checked then
+        ATauschbar := 'Ja'
+      else
+        ATauschbar := 'Nein';
       APublisher := F.edtPublisher.Text;
       AJahr := F.edtJahr.Text;
       AEntwickler := F.edtEntwickler.Text;

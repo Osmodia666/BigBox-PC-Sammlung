@@ -44,6 +44,7 @@ type
     CoverBase64: String; // Bilddaten Base64-kodiert (statt Dateipfad)
     CoverExt: String;    // z.B. '.jpg' - noetig, um die Daten beim Anzeigen richtig zu interpretieren
     Wert: String;
+    Tauschbar: String; // 'Ja'/'Nein' - fuer die Tauschboerse (Freundesliste), selbes Feld wie in der Web-App
   end;
 
   { TForm1 }
@@ -148,6 +149,7 @@ type
     procedure SwitchToCSVFile(const ANewPath: String);
     function NcPullAction(const URL, User, Pass: String; out StatusMsg: String): Boolean;
     function NcPushAction(const URL, User, Pass: String; out StatusMsg: String): Boolean;
+    procedure OpenTauschboerse(const NcUrl, NcUser, NcPass: String);
     procedure ApplyFilter(const SearchText: String);
     procedure ShowGame(Index: Integer);
     procedure RefreshGrid;
@@ -173,7 +175,7 @@ implementation
 
 {$R *.lfm}
 
-uses Unit2, Unit5, AppSettings, NextcloudSync;
+uses Unit2, Unit5, Unit6, AppSettings, NextcloudSync;
 
 { TForm1 }
 
@@ -661,6 +663,14 @@ begin
           Games[i-1].ScummVMPath := Parts[18]
         else
           Games[i-1].ScummVMPath := '';
+
+        { Tauschbar (Spalte 20) - von der Web-App eingefuehrt, dort das
+          letzte Feld. Bei aelteren, noch mit der PC-App allein gepflegten
+          Dateien einfach leer/"Nein". }
+        if Length(Parts) >= 20 then
+          Games[i-1].Tauschbar := Parts[19]
+        else
+          Games[i-1].Tauschbar := '';
       end;
     end;
   finally
@@ -681,7 +691,7 @@ var
 begin
   SL := TStringList.Create;
   try
-    SL.Add('Name|Sprache|Medium|Zustand|Inhalt|Vollständig|Publisher|Jahr|Entwickler|Plattform|CoverBase64|CoverExt|Wert|Genre|ExePath|UseDosBox|DosBoxConfig|UseScummVM|ScummVMPath');
+    SL.Add('Name|Sprache|Medium|Zustand|Inhalt|Vollständig|Publisher|Jahr|Entwickler|Plattform|CoverBase64|CoverExt|Wert|Genre|ExePath|UseDosBox|DosBoxConfig|UseScummVM|ScummVMPath|Tauschbar');
     for i := 0 to Length(Games) - 1 do
     begin
       SL.Add(Games[i].Name + '|' +
@@ -702,7 +712,8 @@ begin
              Games[i].UseDosBox + '|' +
              EncodeStringBase64(Games[i].DosBoxConfig) + '|' +
              Games[i].UseScummVM + '|' +
-             Games[i].ScummVMPath);
+             Games[i].ScummVMPath + '|' +
+             Games[i].Tauschbar);
     end;
     SL.SaveToFile(CSVPath);
   finally
@@ -1325,13 +1336,13 @@ end;
 
 procedure TForm1.btnNeuClick(Sender: TObject);
 var
-  N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP: String;
+  N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP, TB: String;
   Row: Integer;
 begin
   N := ''; S := ''; M := ''; Z := ''; I := '';
-  V := ''; P := ''; J := ''; E := ''; Pl := ''; C := ''; CE := ''; W := ''; G := ''; EX := ''; UD := ''; DC := ''; SV := ''; SVP := '';
+  V := ''; P := ''; J := ''; E := ''; Pl := ''; C := ''; CE := ''; W := ''; G := ''; EX := ''; UD := ''; DC := ''; SV := ''; SVP := ''; TB := '';
 
-  if ShowEditGame(N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP, 'Neues Spiel hinzufügen') then
+  if ShowEditGame(N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP, TB, 'Neues Spiel hinzufügen') then
   begin
     SetLength(Games, Length(Games) + 1);
     Games[Length(Games) - 1].Name := N;
@@ -1353,6 +1364,7 @@ begin
     Games[Length(Games) - 1].DosBoxConfig := DC;
     Games[Length(Games) - 1].UseScummVM := SV;
     Games[Length(Games) - 1].ScummVMPath := SVP;
+    Games[Length(Games) - 1].Tauschbar := TB;
     SortGamesByName;
     SaveCSV;
     RefreshGrid;
@@ -1365,7 +1377,7 @@ end;
 procedure TForm1.btnBearbeitenClick(Sender: TObject);
 var
   Idx, Row: Integer;
-  N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP: String;
+  N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP, TB: String;
 begin
   Idx := CurrentGameIndex;
   if (Idx < 0) or (Idx >= Length(Games)) then
@@ -1393,8 +1405,9 @@ begin
   DC := Games[Idx].DosBoxConfig;
   SV := Games[Idx].UseScummVM;
   SVP := Games[Idx].ScummVMPath;
+  TB := Games[Idx].Tauschbar;
 
-  if ShowEditGame(N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP, 'Spiel bearbeiten: ' + Games[Idx].Name) then
+  if ShowEditGame(N, S, M, Z, I, V, P, J, E, Pl, C, CE, W, G, EX, UD, DC, SV, SVP, TB, 'Spiel bearbeiten: ' + Games[Idx].Name) then
   begin
     Games[Idx].Name := N;
     Games[Idx].Sprache := S;
@@ -1415,6 +1428,7 @@ begin
     Games[Idx].DosBoxConfig := DC;
     Games[Idx].UseScummVM := SV;
     Games[Idx].ScummVMPath := SVP;
+    Games[Idx].Tauschbar := TB;
     SortGamesByName;
     SaveCSV;
     RefreshGrid;
@@ -1781,7 +1795,8 @@ begin
   NewCSVPath := CSVPath;
   if ShowSettings(AppSettings.RawgApiKey, AppSettings.IgdbClientId,
        AppSettings.IgdbClientSecret, AppSettings.NcUrl, AppSettings.NcUser,
-       AppSettings.NcPass, NewCSVPath, @NcPullAction, @NcPushAction) then
+       AppSettings.NcPass, NewCSVPath, @NcPullAction, @NcPushAction,
+       @OpenTauschboerse) then
   begin
     { Erst die gerade bearbeiteten Zugangsdaten an der (noch) aktuellen
       Datei sichern, danach ggf. die Datei wechseln - so gehen zeitgleich
@@ -1879,6 +1894,42 @@ begin
     StatusMsg := 'Erfolgreich hochgeladen (' + FormatDateTime('dd.mm.yyyy hh:nn', Now) + ').'
   else
     StatusMsg := 'Fehler: ' + ErrorMsg;
+end;
+
+procedure TForm1.OpenTauschboerse(const NcUrl, NcUser, NcPass: String);
+var
+  MyGames: array of Unit6.TTradeGame;
+  i, n: Integer;
+begin
+  n := 0;
+  for i := 0 to High(Games) do
+    if SameText(Trim(Games[i].Tauschbar), 'Ja') then
+      Inc(n);
+
+  SetLength(MyGames, n);
+  n := 0;
+  for i := 0 to High(Games) do
+    if SameText(Trim(Games[i].Tauschbar), 'Ja') then
+    begin
+      MyGames[n].Name := Games[i].Name;
+      MyGames[n].Jahr := Games[i].Jahr;
+      MyGames[n].Publisher := Games[i].Publisher;
+      MyGames[n].Entwickler := Games[i].Entwickler;
+      MyGames[n].Medium := Games[i].Medium;
+      MyGames[n].Zustand := Games[i].Zustand;
+      MyGames[n].Genre := Games[i].Genre;
+      MyGames[n].Wert := Games[i].Wert;
+      MyGames[n].CoverBase64 := Games[i].CoverBase64;
+      MyGames[n].CoverExt := Games[i].CoverExt;
+      Inc(n);
+    end;
+
+  Unit6.ShowTauschboerse(MyGames, NcUrl, NcUser, NcPass);
+
+  { Freundesliste/Anzeigename koennen sich waehrend der Tauschboerse
+    geaendert haben (live in AppSettings.Friends/ProfileDisplayName) -
+    dauerhaft machen. }
+  AppSettings.SaveAppSettings(ExtractFilePath(CSVPath) + 'settings.ini');
 end;
 
 function TForm1.ShelfIndexAtPoint(X, Y: Integer): Integer;
@@ -2007,6 +2058,28 @@ begin
   Handled := True;
 end;
 
+{ Kleines "Tauschbar"-Abzeichen (gefuellter Kreis mit Doppelpfeil) oben
+  rechts auf ein Cover-Bitmap gezeichnet - dieselbe Bedeutung wie das
+  Symbol in der Web-App (siehe tradeIconSvg in docs/index.html). Wird
+  EINMAL beim Aufbau des gecachten Cover-Bitmaps gezeichnet (siehe
+  DrawShelfBox), nicht bei jedem Neuzeichnen des Regals. }
+procedure DrawTradeBadge(Bmp: TBGRABitmap);
+var
+  R, CX, CY, FH: Single;
+begin
+  R := Min(Bmp.Width, Bmp.Height) * 0.15;
+  if R < 11 then R := 11;
+  CX := Bmp.Width - R - (Bmp.Width * 0.05);
+  CY := R + (Bmp.Height * 0.05);
+
+  Bmp.FillEllipseAntialias(CX, CY, R, R, BGRA(30, 130, 90, 235));
+
+  FH := R * 1.3;
+  Bmp.FontHeight := Round(FH);
+  Bmp.FontStyle := [fsBold];
+  Bmp.TextOut(CX - FH * 0.32, CY - FH * 0.5, '↔', BGRAWhite);
+end;
+
 procedure TForm1.DrawShelfBox(Bmp: TBGRABitmap; BX, BY: Integer;
   const G: TGame; TiltPx: Integer; Hover: Boolean; Scale: Integer);
 const
@@ -2044,12 +2117,15 @@ begin
   end;
 
   { Cache-Schluessel: Spielename (bei eingebettetem Cover) bzw. Name allein
-    fuer den Platzhalter. So wird jedes Bild nur EINMAL dekodiert, nicht
-    bei jedem Neuzeichnen (das war die Ursache des Ruckelns). }
+    fuer den Platzhalter, PLUS Tauschbar-Status - sonst wuerde ein Tauschbar-
+    Wechsel nicht sichtbar, weil der alte (Cover ohne Badge) gecachte Bitmap
+    unter demselben Namen weiterverwendet wuerde. So wird jedes Bild pro
+    Kombination nur EINMAL dekodiert/gezeichnet, nicht bei jedem Neuzeichnen
+    (das war urspruenglich die Ursache des Ruckelns). }
   if G.CoverBase64 <> '' then
-    CacheKey := 'COVER:' + G.Name
+    CacheKey := 'COVER:' + G.Name + '|' + G.Tauschbar
   else
-    CacheKey := 'PLACEHOLDER:' + G.Name;
+    CacheKey := 'PLACEHOLDER:' + G.Name + '|' + G.Tauschbar;
 
   CacheIdx := ShelfCoverCache.IndexOf(CacheKey);
   if CacheIdx >= 0 then
@@ -2092,6 +2168,9 @@ begin
         Title := Copy(Title, 1, 18) + '…';
       Cover.TextOut(10, 235, Title, BGRAWhite);
     end;
+
+    if SameText(Trim(G.Tauschbar), 'Ja') then
+      DrawTradeBadge(Cover);
 
     ShelfCoverCache.AddObject(CacheKey, Cover);
   end;

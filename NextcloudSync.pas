@@ -20,6 +20,13 @@ function NcDownloadFile(const URL, User, Pass, DestPath: String;
 function NcUploadFile(const URL, User, Pass, SrcPath: String;
   out ErrorMsg: String): Boolean;
 
+{ Ersetzt das letzte "/"-getrennte Segment einer URL durch NewName - z.B.
+  ".../Sammlung/spiele.csv" -> ".../Sammlung/tauschliste.json". Bewusst
+  eine eigene, Slash-basierte Implementierung statt ExtractFilePath/
+  ExtractFileName: die arbeiten mit PathDelim (unter Windows "\"), eine
+  WebDAV-URL nutzt aber immer "/". }
+function ReplaceLastURLSegment(const URL, NewName: String): String;
+
 implementation
 
 procedure ApplyAuth(Client: TFPHTTPClient; const User, Pass: String);
@@ -107,6 +114,19 @@ begin
   finally
     Client.Free;
   end;
+end;
+
+function ReplaceLastURLSegment(const URL, NewName: String): String;
+var
+  P: Integer;
+begin
+  P := Length(URL);
+  while (P > 0) and (URL[P] <> '/') do
+    Dec(P);
+  if P = 0 then
+    Result := NewName
+  else
+    Result := Copy(URL, 1, P) + NewName;
 end;
 
 end.

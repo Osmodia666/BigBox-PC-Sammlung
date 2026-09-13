@@ -17,6 +17,14 @@ type
   TNcSyncFunc = function(const URL, User, Pass: String;
     out StatusMsg: String): Boolean of object;
 
+  { Oeffnet die Tauschboerse (Freundesliste). Bekommt die aktuell im Dialog
+    eingetragenen Nextcloud-Zugangsdaten mit, damit "Zu Nextcloud hochladen"
+    dort funktioniert, auch wenn der Nutzer sie gerade erst eingetragen und
+    noch nicht per "Speichern" bestaetigt hat. Die eigentliche Logik
+    (Tauschboerse-Fenster, Zugriff auf die Spieleliste) lebt in Unit1/Unit6 -
+    diese Unit bleibt reine Oberflaeche ohne Rueckverweis auf beide. }
+  TOpenTauschboerseFunc = procedure(const NcUrl, NcUser, NcPass: String) of object;
+
   { TSettingsForm }
   TSettingsForm = class(TForm)
     edtRawg: TEdit;
@@ -33,6 +41,7 @@ type
     btnPull: TButton;
     btnPush: TButton;
     lblSyncStatus: TLabel;
+    btnTauschboerse: TButton;
     lblDonate: TLabel;
     btnOK: TButton;
     btnCancel: TButton;
@@ -42,11 +51,13 @@ type
     procedure btnNewCSVClick(Sender: TObject);
     procedure btnPullClick(Sender: TObject);
     procedure btnPushClick(Sender: TObject);
+    procedure btnTauschboerseClick(Sender: TObject);
     procedure lblDonateClick(Sender: TObject);
   public
     CurrentCSVPath: String;
     PullFunc: TNcSyncFunc;
     PushFunc: TNcSyncFunc;
+    OpenTauschboerseFunc: TOpenTauschboerseFunc;
   end;
 
 { Zeigt den Einstellungsdialog fuer RAWG-/IGDB-Zugangsdaten, die aktive
@@ -59,7 +70,8 @@ type
   abrufen"/"Eigenen Stand hochladen"-Buttons durchgereicht. }
 function ShowSettings(var ARawgApiKey, AIgdbClientId, AIgdbClientSecret,
   ANcUrl, ANcUser, ANcPass, ACSVPath: String;
-  APullFunc, APushFunc: TNcSyncFunc): Boolean;
+  APullFunc, APushFunc: TNcSyncFunc;
+  AOpenTauschboerse: TOpenTauschboerseFunc): Boolean;
 
 implementation
 
@@ -139,6 +151,12 @@ begin
   lblSyncStatus.Caption := StatusMsg;
 end;
 
+procedure TSettingsForm.btnTauschboerseClick(Sender: TObject);
+begin
+  if Assigned(OpenTauschboerseFunc) then
+    OpenTauschboerseFunc(edtNcUrl.Text, edtNcUser.Text, edtNcPass.Text);
+end;
+
 procedure TSettingsForm.lblDonateClick(Sender: TObject);
 begin
   OpenURL('https://paypal.me/ChristopherStein');
@@ -146,7 +164,8 @@ end;
 
 function ShowSettings(var ARawgApiKey, AIgdbClientId, AIgdbClientSecret,
   ANcUrl, ANcUser, ANcPass, ACSVPath: String;
-  APullFunc, APushFunc: TNcSyncFunc): Boolean;
+  APullFunc, APushFunc: TNcSyncFunc;
+  AOpenTauschboerse: TOpenTauschboerseFunc): Boolean;
 var
   F: TSettingsForm;
   TopY: Integer;
@@ -189,6 +208,7 @@ begin
     F.CurrentCSVPath := ACSVPath;
     F.PullFunc := APullFunc;
     F.PushFunc := APushFunc;
+    F.OpenTauschboerseFunc := AOpenTauschboerse;
 
     TopY := 16;
 
@@ -299,6 +319,16 @@ begin
     F.lblSyncStatus.Height := 34;
     F.lblSyncStatus.Font.Color := clNavy;
     TopY += 40;
+
+    F.btnTauschboerse := TButton.Create(F);
+    F.btnTauschboerse.Parent := F;
+    F.btnTauschboerse.SetBounds(20, TopY, 440, 30);
+    F.btnTauschboerse.Caption := 'Tauschbörse öffnen (Freunde & tauschbare Spiele)...';
+    F.btnTauschboerse.OnClick := @F.btnTauschboerseClick;
+    TopY += 38;
+    AddHint('Zeigt deine als "Tauschbar" markierten Spiele, veröffentlicht sie '
+      + 'als Datei/auf Nextcloud, und verwaltet Freunde, deren Tauschlisten du '
+      + 'abonnierst.', 32);
 
     F.lblDonate := TLabel.Create(F);
     F.lblDonate.Parent := F;
