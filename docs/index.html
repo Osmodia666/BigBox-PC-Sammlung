@@ -183,6 +183,14 @@ input,select,textarea,button{font-family:inherit}
 .sync-dot.off{background:var(--ink-dim)}
 .filepick{display:none}
 
+.donate-card{margin:22px 16px 8px;padding:18px;border-radius:14px;background:var(--paper-raised);border:1px solid var(--line);text-align:center}
+.donate-card p{margin:0 0 14px;font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:var(--ink-dim)}
+.paypal-btn{display:inline-flex;align-items:center;gap:8px;background:#ffc439;color:#003087;padding:12px 22px;border-radius:24px;text-decoration:none;font:600 14px/1 'IBM Plex Sans',sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.paypal-btn:active{filter:brightness(.95)}
+.paypal-wordmark{display:inline-flex;font-style:italic;font-weight:800;font-size:16px;letter-spacing:-.3px}
+.paypal-wordmark b{color:#003087;font-style:italic}
+.paypal-wordmark i{color:#0070e0;font-style:italic}
+
 
 .toast{position:fixed;left:16px;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));background:var(--shelf);color:var(--shelf-ink);border:1px solid var(--shelf-line);border-radius:12px;padding:13px 16px;font:400 13px/1.4 'IBM Plex Sans',sans-serif;box-shadow:var(--shadow);z-index:50;max-width:448px;margin:0 auto;text-align:center}
 .confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:60}
@@ -848,6 +856,14 @@ function listCardHtml(g){
     '<div class="end">'+(g.zustand?'<span class="badge '+zc+'">'+esc(g.zustand)+'</span>':'')+tauschbarBadge(g)+'<span class="wert tnum">'+fmtEuro(parseWert(g.wert))+'</span></div>'+
   '</button>';
 }
+function paypalDonateHtml(){
+  return '<div class="donate-card">'+
+    '<p>Gefällt dir die App? Du kannst das Projekt freiwillig unterstützen.</p>'+
+    '<a class="paypal-btn" href="https://paypal.me/ChristopherStein" target="_blank" rel="noopener noreferrer">'+
+      '<span class="paypal-wordmark"><b>Pay</b><i>Pal</i></span> Spenden'+
+    '</a>'+
+  '</div>';
+}
 function viewRegal(){
   var groups = {}; var order = [];
   var sorted = state.games.slice().sort(function(a,b){ return a.name.localeCompare(b.name,"de"); });
@@ -874,6 +890,7 @@ function viewRegal(){
         '<div class="shelf-plank"></div><div class="shelf-plank-shadow"></div></div>';
     });
   }
+  html += paypalDonateHtml();
   html += '</div>' + renderTabbar();
   return html;
 }
@@ -934,6 +951,7 @@ function viewMore(){
     '<div class="menu-item" data-tab="apikeys"><div><div class="t">API-Schlüssel</div><div class="s">RAWG / IGDB für den Online-Abgleich</div></div><div class="arrow">›</div></div>'+
   '</div>';
   html += '<div class="pcnote" style="margin:0 16px">DOSBox/ScummVM-Zuordnung ist PC-spezifisch eingerichtet – hier siehst du nur, ob eines davon für ein Spiel aktiv ist, nicht die Pfade/Konfiguration. Sie bleiben beim Sync erhalten.</div>';
+  html += paypalDonateHtml();
   html += '</div>' + renderTabbar();
   return html;
 }
