@@ -145,6 +145,9 @@ type
     ShelfSortedRows: array of Integer; // FilteredRows in der gewaehlten Regal-Sortierung
     procedure LoadCSV(const Filename: String);
     procedure SaveCSV;
+    procedure SwitchToCSVFile(const ANewPath: String);
+    function NcPullAction(const URL, User, Pass: String; out StatusMsg: String): Boolean;
+    function NcPushAction(const URL, User, Pass: String; out StatusMsg: String): Boolean;
     procedure ApplyFilter(const SearchText: String);
     procedure ShowGame(Index: Integer);
     procedure RefreshGrid;
@@ -170,7 +173,7 @@ implementation
 
 {$R *.lfm}
 
-uses Unit2, Unit5, AppSettings;
+uses Unit2, Unit5, AppSettings, NextcloudSync;
 
 { TForm1 }
 
@@ -251,10 +254,22 @@ var
 begin
   CurrentGameIndex := -1;
 
-  CSVPath := ExtractFilePath(Application.ExeName) + 'spiele.csv';
-  if not FileExists(CSVPath) then
-    CSVPath := 'C:\Users\chris\Documents\Default Project\spiele.csv';
+  { Zuletzt genutzte Datei merken sich geraeteweit (siehe AppSettings) -
+    ueber "Einstellungen..." kann jederzeit eine andere geoeffnet oder eine
+    neue angelegt werden (SwitchToCSVFile). Ohne bekannte Datei (Erststart)
+    wird wie bisher eine spiele.csv neben der .exe verwendet bzw. leer neu
+    angelegt. }
+  CSVPath := AppSettings.LoadLastCSVPath;
+  if (CSVPath = '') or not FileExists(CSVPath) then
+    CSVPath := ExtractFilePath(Application.ExeName) + 'spiele.csv';
 
+  if not FileExists(CSVPath) then
+  begin
+    SetLength(Games, 0);
+    SaveCSV;
+  end;
+
+  AppSettings.SaveLastCSVPath(CSVPath);
   AppSettings.LoadAppSettings(ExtractFilePath(CSVPath) + 'settings.ini');
 
   LoadCSV(CSVPath);
@@ -1759,10 +1774,111 @@ begin
 end;
 
 procedure TForm1.btnEinstellungenClick(Sender: TObject);
+var
+  OldCSVPath, NewCSVPath: String;
 begin
+  OldCSVPath := CSVPath;
+  NewCSVPath := CSVPath;
   if ShowSettings(AppSettings.RawgApiKey, AppSettings.IgdbClientId,
-       AppSettings.IgdbClientSecret) then
+       AppSettings.IgdbClientSecret, AppSettings.NcUrl, AppSettings.NcUser,
+       AppSettings.NcPass, NewCSVPath, @NcPullAction, @NcPushAction) then
+  begin
+    { Erst die gerade bearbeiteten Zugangsdaten an der (noch) aktuellen
+      Datei sichern, danach ggf. die Datei wechseln - so gehen zeitgleich
+      geaenderte Einstellungen nicht durch den Wechsel verloren. Eine
+      andere Sammlung (andere CSV-Datei) hat danach bewusst ihre eigenen,
+      separat gespeicherten Zugangsdaten. }
     AppSettings.SaveAppSettings(ExtractFilePath(CSVPath) + 'settings.ini');
+    if NewCSVPath <> OldCSVPath then
+      SwitchToCSVFile(NewCSVPath);
+  end;
+end;
+
+procedure TForm1.SwitchToCSVFile(const ANewPath: String);
+begin
+  if CSVPath <> '' then
+    SaveCSV; // aktuellen Stand an der bisherigen Datei sichern, bevor gewechselt wird
+
+  CSVPath := ANewPath;
+  AppSettings.SaveLastCSVPath(CSVPath);
+  AppSettings.LoadAppSettings(ExtractFilePath(CSVPath) + 'settings.ini');
+
+  if FileExists(CSVPath) then
+    LoadCSV(CSVPath)
+  else
+  begin
+    SetLength(Games, 0);
+    SaveCSV; // legt die neue Datei mit nur der Kopfzeile an
+  end;
+
+  RefreshGrid;
+  ShowMessage('Aktive Datei: ' + CSVPath);
+end;
+
+function TForm1.NcPullAction(const URL, User, Pass: String; out StatusMsg: String): Boolean;
+var
+  ErrorMsg, TmpPath: String;
+begin
+  Result := False;
+  StatusMsg := '';
+
+  if MessageDlg('Vom Server abrufen',
+       'Der aktuelle Stand auf diesem PC wird durch die Version vom Server ersetzt. Fortfahren?',
+       mtConfirmation, [mbYes, mbNo], 0) = mrNo then
+  begin
+    StatusMsg := 'Abgebrochen.';
+    Exit;
+  end;
+
+  TmpPath := CSVPath + '.download';
+  Screen.Cursor := crHourglass;
+  try
+    Result := NextcloudSync.NcDownloadFile(URL, User, Pass, TmpPath, ErrorMsg);
+  finally
+    Screen.Cursor := crDefault;
+  end;
+
+  if Result then
+  begin
+    try
+      if FileExists(CSVPath) then
+        DeleteFile(CSVPath);
+      RenameFile(TmpPath, CSVPath);
+      LoadCSV(CSVPath);
+      RefreshGrid;
+      StatusMsg := 'Erfolgreich geladen (' + FormatDateTime('dd.mm.yyyy hh:nn', Now) + ').';
+    except
+      on E: Exception do
+      begin
+        Result := False;
+        StatusMsg := 'Datei konnte nicht übernommen werden: ' + E.Message;
+      end;
+    end;
+  end
+  else
+  begin
+    if FileExists(TmpPath) then
+      DeleteFile(TmpPath);
+    StatusMsg := 'Fehler: ' + ErrorMsg;
+  end;
+end;
+
+function TForm1.NcPushAction(const URL, User, Pass: String; out StatusMsg: String): Boolean;
+var
+  ErrorMsg: String;
+begin
+  SaveCSV;
+  Screen.Cursor := crHourglass;
+  try
+    Result := NextcloudSync.NcUploadFile(URL, User, Pass, CSVPath, ErrorMsg);
+  finally
+    Screen.Cursor := crDefault;
+  end;
+
+  if Result then
+    StatusMsg := 'Erfolgreich hochgeladen (' + FormatDateTime('dd.mm.yyyy hh:nn', Now) + ').'
+  else
+    StatusMsg := 'Fehler: ' + ErrorMsg;
 end;
 
 function TForm1.ShelfIndexAtPoint(X, Y: Integer): Integer;
