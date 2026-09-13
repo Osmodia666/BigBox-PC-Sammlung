@@ -2058,26 +2058,22 @@ begin
   Handled := True;
 end;
 
-{ Kleines "Tauschbar"-Abzeichen (gefuellter Kreis mit Doppelpfeil) oben
-  rechts auf ein Cover-Bitmap gezeichnet - dieselbe Bedeutung wie das
-  Symbol in der Web-App (siehe tradeIconSvg in docs/index.html). Wird
-  EINMAL beim Aufbau des gecachten Cover-Bitmaps gezeichnet (siehe
-  DrawShelfBox), nicht bei jedem Neuzeichnen des Regals. }
-procedure DrawTradeBadge(Bmp: TBGRABitmap);
+{ Kleines "Tauschbar"-Abzeichen (gefuellter Kreis mit Doppelpfeil), an einer
+  festen Bildschirmposition aufrecht auf das FERTIGE Bmp gezeichnet -
+  dieselbe Bedeutung wie das Symbol in der Web-App (siehe tradeIconHtml in
+  docs/index.html). Wird bewusst NACH der Perspektiv-Transformation der Box
+  gezeichnet (siehe DrawShelfBox), nicht vorher ins Cover-Bitmap eingebrannt -
+  sonst wuerde es mit der Box-Schraeglage verzerrt statt aufrecht zu bleiben. }
+procedure DrawTradeBadge(Bmp: TBGRABitmap; CenterX, CenterY, R: Single);
 var
-  R, CX, CY, FH: Single;
+  FH: Single;
 begin
-  R := Min(Bmp.Width, Bmp.Height) * 0.15;
-  if R < 11 then R := 11;
-  CX := Bmp.Width - R - (Bmp.Width * 0.05);
-  CY := R + (Bmp.Height * 0.05);
-
-  Bmp.FillEllipseAntialias(CX, CY, R, R, BGRA(30, 130, 90, 235));
+  Bmp.FillEllipseAntialias(CenterX, CenterY, R, R, BGRA(30, 130, 90, 235));
 
   FH := R * 1.3;
   Bmp.FontHeight := Round(FH);
   Bmp.FontStyle := [fsBold];
-  Bmp.TextOut(CX - FH * 0.32, CY - FH * 0.5, '↔', BGRAWhite);
+  Bmp.TextOut(CenterX - FH * 0.32, CenterY - FH * 0.5, '↔', BGRAWhite);
 end;
 
 procedure TForm1.DrawShelfBox(Bmp: TBGRABitmap; BX, BY: Integer;
@@ -2098,6 +2094,7 @@ var
   Origin, HAxis, VAxis: TPointF;
   Title, CacheKey: String;
   MS: TMemoryStream;
+  BadgeR: Single;
 begin
   { Alles ab hier in "Supersample"-Koordinaten (Scale-fach vergroessert) -
     ShelfIndexAtPoint & Co. rechnen weiterhin in normalen Bildschirm-
@@ -2117,15 +2114,14 @@ begin
   end;
 
   { Cache-Schluessel: Spielename (bei eingebettetem Cover) bzw. Name allein
-    fuer den Platzhalter, PLUS Tauschbar-Status - sonst wuerde ein Tauschbar-
-    Wechsel nicht sichtbar, weil der alte (Cover ohne Badge) gecachte Bitmap
-    unter demselben Namen weiterverwendet wuerde. So wird jedes Bild pro
-    Kombination nur EINMAL dekodiert/gezeichnet, nicht bei jedem Neuzeichnen
-    (das war urspruenglich die Ursache des Ruckelns). }
+    fuer den Platzhalter. So wird jedes Bild nur EINMAL dekodiert, nicht bei
+    jedem Neuzeichnen (das war die Ursache des Ruckelns). Das Tauschbar-
+    Abzeichen ist NICHT Teil des gecachten Bitmaps (siehe weiter unten),
+    braucht den Status also auch nicht im Cache-Schluessel. }
   if G.CoverBase64 <> '' then
-    CacheKey := 'COVER:' + G.Name + '|' + G.Tauschbar
+    CacheKey := 'COVER:' + G.Name
   else
-    CacheKey := 'PLACEHOLDER:' + G.Name + '|' + G.Tauschbar;
+    CacheKey := 'PLACEHOLDER:' + G.Name;
 
   CacheIdx := ShelfCoverCache.IndexOf(CacheKey);
   if CacheIdx >= 0 then
@@ -2169,9 +2165,6 @@ begin
       Cover.TextOut(10, 235, Title, BGRAWhite);
     end;
 
-    if SameText(Trim(G.Tauschbar), 'Ja') then
-      DrawTradeBadge(Cover);
-
     ShelfCoverCache.AddObject(CacheKey, Cover);
   end;
 
@@ -2188,6 +2181,19 @@ begin
   VAxis := PointF(BX + TiltPx, BY + H);
 
   Bmp.PutImageAffine(Origin, HAxis, VAxis, Cover, 255, True);
+
+  { Tauschbar-Abzeichen ERST NACH der Perspektiv-Transformation zeichnen,
+    damit es (anders als vorher) nicht mitverzerrt wird. Die Kopfkante
+    Origin->HAxis der Box bleibt bei diesem Parallelogramm immer horizontal
+    (nur die linke/rechte Kante schraegt sich um TiltPx) - daher genuegt es,
+    das Abzeichen relativ zu HAxis zu platzieren, ohne die volle
+    Perspektive nachzurechnen. }
+  if SameText(Trim(G.Tauschbar), 'Ja') then
+  begin
+    BadgeR := W * 0.16;
+    if BadgeR < 11 * Scale then BadgeR := 11 * Scale;
+    DrawTradeBadge(Bmp, HAxis.X - BadgeR - (3 * Scale), Origin.Y + BadgeR + (3 * Scale), BadgeR);
+  end;
 end;
 
 procedure TForm1.DrawShelfBoxOnLayer(Layer: TBGRABitmap; BX, BY: Integer;
