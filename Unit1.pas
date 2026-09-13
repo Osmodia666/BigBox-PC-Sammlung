@@ -2058,22 +2058,56 @@ begin
   Handled := True;
 end;
 
-{ Kleines "Tauschbar"-Abzeichen (gefuellter Kreis mit Doppelpfeil), an einer
-  festen Bildschirmposition aufrecht auf das FERTIGE Bmp gezeichnet -
-  dieselbe Bedeutung wie das Symbol in der Web-App (siehe tradeIconHtml in
+{ Kleines "Tauschbar"-Abzeichen (blauer Kreis mit zwei gegenlaeufigen
+  Pfeilen, wie das "Retweet/Wiederholen"-Symbol), an einer festen
+  Bildschirmposition aufrecht auf das FERTIGE Bmp gezeichnet - dieselbe
+  Bedeutung UND Optik wie das Symbol in der Web-App (siehe tradeIconHtml in
   docs/index.html). Wird bewusst NACH der Perspektiv-Transformation der Box
   gezeichnet (siehe DrawShelfBox), nicht vorher ins Cover-Bitmap eingebrannt -
-  sonst wuerde es mit der Box-Schraeglage verzerrt statt aufrecht zu bleiben. }
+  sonst wuerde es mit der Box-Schraeglage verzerrt statt aufrecht zu bleiben.
+  Die Pfeile sind aus Rechtecken/Dreiecken aufgebaut statt aus einem
+  Text-Zeichen (Pfeil-Glyphen wie "↔" sind je nach Schriftart unterschiedlich
+  breit/hoch platziert und liessen sich dadurch nicht zuverlaessig mittig
+  ausrichten - mit selbst berechneter Geometrie ist die Zentrierung garantiert). }
 procedure DrawTradeBadge(Bmp: TBGRABitmap; CenterX, CenterY, R: Single);
 var
-  FH: Single;
+  T, Y1, Y2: Single;
+  ArrowColor, BgColor: TBGRAPixel;
 begin
-  Bmp.FillEllipseAntialias(CenterX, CenterY, R, R, BGRA(30, 130, 90, 235));
+  BgColor := BGRA(61, 139, 253, 235);  // Blau, wie das Symbol in der Web-App
+  ArrowColor := BGRABlack;
 
-  FH := R * 1.3;
-  Bmp.FontHeight := Round(FH);
-  Bmp.FontStyle := [fsBold];
-  Bmp.TextOut(CenterX - FH * 0.32, CenterY - FH * 0.5, '↔', BGRAWhite);
+  Bmp.FillEllipseAntialias(CenterX, CenterY, R, R, BgColor);
+
+  T := R * 0.22;           // Strichstaerke der Pfeilbalken
+  Y1 := CenterY - R * 0.28; // oberer Pfeil (zeigt nach rechts)
+  Y2 := CenterY + R * 0.28; // unterer Pfeil (zeigt nach links)
+
+  { Oberer Pfeil: Balken + Pfeilspitze nach rechts }
+  Bmp.FillPolyAntialias([
+    PointF(CenterX - R * 0.55, Y1 - T / 2),
+    PointF(CenterX + R * 0.15, Y1 - T / 2),
+    PointF(CenterX + R * 0.15, Y1 + T / 2),
+    PointF(CenterX - R * 0.55, Y1 + T / 2)
+  ], ArrowColor);
+  Bmp.FillPolyAntialias([
+    PointF(CenterX + R * 0.55, Y1),
+    PointF(CenterX + R * 0.15, Y1 - R * 0.32),
+    PointF(CenterX + R * 0.15, Y1 + R * 0.32)
+  ], ArrowColor);
+
+  { Unterer Pfeil: Balken + Pfeilspitze nach links (180 Grad gespiegelt) }
+  Bmp.FillPolyAntialias([
+    PointF(CenterX + R * 0.55, Y2 - T / 2),
+    PointF(CenterX - R * 0.15, Y2 - T / 2),
+    PointF(CenterX - R * 0.15, Y2 + T / 2),
+    PointF(CenterX + R * 0.55, Y2 + T / 2)
+  ], ArrowColor);
+  Bmp.FillPolyAntialias([
+    PointF(CenterX - R * 0.55, Y2),
+    PointF(CenterX - R * 0.15, Y2 - R * 0.32),
+    PointF(CenterX - R * 0.15, Y2 + R * 0.32)
+  ], ArrowColor);
 end;
 
 procedure TForm1.DrawShelfBox(Bmp: TBGRABitmap; BX, BY: Integer;

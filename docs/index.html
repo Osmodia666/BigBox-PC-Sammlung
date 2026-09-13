@@ -80,7 +80,7 @@ input,select,textarea,button{font-family:inherit}
 .shelf-plank{height:9px;border-radius:2px;background:linear-gradient(#c9c1b4,#a89e8d);box-shadow:0 3px 6px rgba(0,0,0,.18);margin:0 6px}
 .shelf-plank-shadow{height:5px;margin:0 15px;border-radius:0 0 3px 3px;background:#8f8676}
 
-.tradebadge{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:var(--good);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:2}
+.tradebadge{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:#3d8bfd;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:2}
 .tradebadge svg{width:12px;height:12px;display:block}
 .tradebadge.sm{width:16px;height:16px;top:3px;right:3px}
 .tradebadge.sm svg{width:9px;height:9px}
@@ -459,8 +459,9 @@ function tauschbarBadge(g){ return (g && g.tauschbar==="Ja") ? '<span class="bad
    Abzeichen im Regal der PC-App (siehe DrawTradeBadge in Unit1.pas). */
 function tradeIconHtml(small){
   return '<div class="tradebadge'+(small?' sm':'')+'" title="Tauschbar">'+
-    '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'+
-      '<path d="M4 8h13m0 0l-4-4m4 4l-4 4"/><path d="M20 16H7m0 0l4-4m-4 4l4 4"/>'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'+
+      '<path d="M17 2l4 4-4 4"/><path d="M3 12v-2a4 4 0 0 1 4-4h14"/>'+
+      '<path d="M7 22l-4-4 4-4"/><path d="M21 12v2a4 4 0 0 1-4 4H3"/>'+
     '</svg>'+
   '</div>';
 }
