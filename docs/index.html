@@ -536,7 +536,7 @@ function pushToNextcloud(){
     if(!res.ok) throw new Error("HTTP " + res.status);
     var meta = loadMeta();
     meta.ncLastPush = Date.now();
-    meta.ncLastSyncedHash = hashStr(csv);
+    meta.ncLastSyncedHash = normalizedGamesHash(state.games);
     meta.ncLastError = null;
     saveMeta(meta);
     if(state.view === "sync") render();
@@ -553,6 +553,19 @@ function hashStr(s){
   for(var i=0;i<s.length;i++){ h = ((h*33) ^ s.charCodeAt(i)) >>> 0; }
   return h.toString(16);
 }
+/* Hash ueber die GEPARSTEN, sortierten Spieldaten statt ueber den rohen
+   CSV-Text: die PC-App und diese Web-App schreiben inhaltlich identische
+   Sammlungen nicht zwingend byte-identisch weg (z. B. Zeilenenden,
+   Reihenfolge). Ein reiner Text-Hash meldete dadurch bei jedem Abruf
+   "unterscheidet sich", obwohl sich an den Spielen selbst nichts geaendert
+   hatte. Sortiert nach Name, damit auch eine reine Reihenfolge-Aenderung
+   keinen Fehlalarm ausloest. }
+function normalizedGamesHash(games){
+  var lines = games.map(function(g){
+    return CSV_KEYS.map(function(k){ return g[k]==null?"":String(g[k]); }).join("|");
+  }).sort();
+  return hashStr(lines.join("\n"));
+}
 
 function pullFromNextcloud(silent){
   var nc = loadNC();
@@ -567,10 +580,10 @@ function pullFromNextcloud(silent){
       meta.ncLastPull = Date.now();
       meta.ncLastError = null;
       saveMeta(meta);
-      var remoteHash = hashStr(text);
-      if(remoteHash === meta.ncLastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
       var parsed = parseCSV(text);
       if(!parsed.length){ if(!silent) showToast("Remote-Datei leer oder unlesbar."); return; }
+      var remoteHash = normalizedGamesHash(parsed);
+      if(remoteHash === meta.ncLastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
       state.confirm = {
         title: "Neue Version auf Nextcloud",
         msg: "Die Datei auf Nextcloud unterscheidet sich (" + parsed.length + " Spiele). Übernehmen und die " + state.games.length + " Spiele hier ersetzen?",
@@ -673,10 +686,10 @@ function pullFromGDrive(silent){
     meta.gdLastPull = Date.now();
     meta.gdLastError = null;
     saveMeta(meta);
-    var remoteHash = hashStr(text);
-    if(remoteHash === meta.gdLastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
     var parsed = parseCSV(text);
     if(!parsed.length){ if(!silent) showToast("Remote-Datei leer oder unlesbar."); return; }
+    var remoteHash = normalizedGamesHash(parsed);
+    if(remoteHash === meta.gdLastSyncedHash){ if(!silent){ showToast("Bereits aktuell."); } return; }
     state.confirm = {
       title: "Neue Version auf Google Drive",
       msg: "Die Datei auf Google Drive unterscheidet sich (" + parsed.length + " Spiele). Übernehmen und die " + state.games.length + " Spiele hier ersetzen?",
@@ -712,7 +725,7 @@ function pushToGDrive(){
     if(!res.ok) throw new Error("HTTP " + res.status);
     var meta = loadMeta();
     meta.gdLastPush = Date.now();
-    meta.gdLastSyncedHash = hashStr(csv);
+    meta.gdLastSyncedHash = normalizedGamesHash(state.games);
     meta.gdLastError = null;
     saveMeta(meta);
     if(state.view === "sync") render();
