@@ -1,0 +1,12 @@
+# Lokal erzeugte Laufzeit-/Build-Dateien - nicht Teil des Quellcodes
+column_widths.cfg
+settings.ini
+lastfile.ini
+spiele.csv
+lib/
+*.exe
+*.o
+*.ppu
+*.compiled
+backup/
+*.bak~

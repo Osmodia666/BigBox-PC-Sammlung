@@ -156,6 +156,7 @@ type
     procedure AutoSizeGrid;
     procedure SaveColumnWidths;
     function LoadColumnWidths: Boolean;
+    procedure SetDefaultColumnWidths;
     procedure UpdateGesamtwert;
     function FindGameByRow(ARow: Integer): Integer;
     function GameToSearchURL(const BaseURL: String): String;
@@ -297,7 +298,7 @@ begin
 
   ApplyFilter('');
   if not LoadColumnWidths then
-    AutoSizeGrid;
+    SetDefaultColumnWidths;
   UpdateGesamtwert;
 
   edtSuche.TextHint := 'Suche nach Name, Publisher, Jahr...';
@@ -792,6 +793,22 @@ begin
 end;
 
 
+
+{ Feste Vorgabe-Spaltenbreiten fuer die Tabellenansicht (Nr./Name/Jahr/
+  Publisher-Entwickler/Inhalt/Zustand/Medium/Wert) - entspricht den Werten,
+  die zuvor in der mitgelieferten column_widths.cfg standen. Greift beim
+  allerersten Start bzw. wenn keine gespeicherte column_widths.cfg
+  gefunden wird; individuelle Anpassungen per Maus werden weiterhin ueber
+  SaveColumnWidths lokal gemerkt. }
+procedure TForm1.SetDefaultColumnWidths;
+const
+  DefaultWidths: array[0..7] of Integer = (50, 273, 39, 150, 245, 122, 90, 75);
+var
+  i: Integer;
+begin
+  for i := 0 to Min(StringGrid1.ColCount - 1, High(DefaultWidths)) do
+    StringGrid1.ColWidths[i] := DefaultWidths[i];
+end;
 
 procedure TForm1.SaveColumnWidths;
 var
