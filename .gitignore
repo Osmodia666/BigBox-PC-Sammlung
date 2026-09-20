@@ -3,10 +3,12 @@ column_widths.cfg
 settings.ini
 lastfile.ini
 spiele.csv
-lib/
-*.exe
-*.o
-*.ppu
-*.compiled
+source/lib/
+source/*.o
+source/*.ppu
+source/*.compiled
 backup/
 *.bak~
+
+# Die fertige SpieleSammlung.exe im Root wird bewusst NICHT ignoriert -
+# die wird manuell gebaut und eingecheckt (siehe README).

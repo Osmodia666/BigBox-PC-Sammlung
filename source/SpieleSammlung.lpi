@@ -91,11 +91,10 @@
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="SpieleSammlung"/>
+      <Filename Value="../SpieleSammlung"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../../../Downloads"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

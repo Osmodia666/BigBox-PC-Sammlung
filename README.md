@@ -6,7 +6,7 @@ Eine Sammlungsverwaltung für alte PC-/Amiga-Spiele in der klassischen "Big Box"
 
 | Teil | Was es ist |
 |---|---|
-| **PC-App** (`SpieleSammlung.lpi` + `Unit*.pas`) | Lazarus/Free-Pascal-Windows-Programm. Tabellenansicht + optische Regalansicht, Bearbeiten-Dialog, DOSBox-/ScummVM-Start, Online-Abgleich, Nextcloud-Sync, Tauschbörse. |
+| **PC-App** (Quellcode in `source/`) | Lazarus/Free-Pascal-Windows-Programm. Tabellenansicht + optische Regalansicht, Bearbeiten-Dialog, DOSBox-/ScummVM-Start, Online-Abgleich, Nextcloud-Sync, Tauschbörse. Die fertig gebaute `SpieleSammlung.exe` liegt direkt im Repo-Root neben den benötigten DLLs – einfach herunterladen und starten, ohne selbst bauen zu müssen. |
 | **Web-App** (`docs/index.html`) | Mobile/Desktop-Begleit-App, gehostet über GitHub Pages. Kamera-Erfassung (Cover fotografieren, Barcode scannen), Nextcloud-/Google-Drive-Sync, Tauschbörse/Wunschliste. Live unter [osmodia666.github.io/BigBox-PC-Sammlung](https://osmodia666.github.io/BigBox-PC-Sammlung/). |
 | **Mobile-Mockup** (`mobile-app/BigBoxMobile.html`) | Leichtgewichtige, rein clientseitige Variante ohne Cloud-Anbindung (z. B. als eigenständige Datei nutzbar, keine Internetverbindung nötig). |
 
@@ -23,15 +23,18 @@ Beide Haupt-Apps lesen/schreiben dasselbe pipe-getrennte CSV-Format (siehe unten
 - **Kamera-Erfassung** (nur Web-App): Cover abfotografieren, Barcode fotografieren und automatisch erkennen lassen
 - Eigene RAWG-/IGDB-Zugangsdaten je Gerät hinterlegbar (siehe unten) – nichts ist im Quellcode fest eingetragen
 
-## PC-App bauen
+## PC-App: einfach nutzen oder selbst bauen
+
+**Nur nutzen:** `SpieleSammlung.exe` im Repo-Root herunterladen – `libcrypto-4-x64.dll` und `libssl-4-x64.dll` liegen direkt daneben und werden für RAWG/IGDB/Nextcloud-Anfragen (HTTPS) benötigt, also alle drei Dateien zusammen in denselben Ordner legen und starten.
+
+**Selbst bauen** (z. B. um am Code etwas zu ändern): der komplette Quellcode liegt in `source/`.
 
 Voraussetzungen:
 
 - [Lazarus](https://www.lazarus-ide.org/) (getestet mit FPC 3.2.x)
 - Online-Paket **BGRABitmapPack** über den Lazarus-Online-Paketmanager installieren (für die Regal-Grafik)
-- Windows-Build: `libcrypto-4-x64.dll` und `libssl-4-x64.dll` (liegen bereits im Repo) müssen neben der fertigen `.exe` liegen – sonst funktionieren RAWG/IGDB/Nextcloud-Anfragen (HTTPS) nicht
 
-`SpieleSammlung.lpi` in Lazarus öffnen, Paketabhängigkeiten auflösen lassen, kompilieren.
+`source/SpieleSammlung.lpi` in Lazarus öffnen, Paketabhängigkeiten auflösen lassen, kompilieren. Das Projekt ist so eingestellt, dass die fertige `SpieleSammlung.exe` automatisch eine Ebene höher landet – also direkt im Repo-Root neben den beiden DLLs.
 
 Beim ersten Start legt das Programm eine leere `spiele.csv` neben der `.exe` an. Über **Einstellungen…** in der Werkzeugleiste lässt sich jederzeit eine vorhandene Datei öffnen oder eine neue an anderer Stelle anlegen (z. B. in einem lokal synchronisierten Nextcloud-Ordner).
 
