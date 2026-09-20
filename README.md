@@ -6,7 +6,7 @@ Eine Sammlungsverwaltung für alte PC-/Amiga-Spiele in der klassischen "Big Box"
 
 | Teil | Was es ist |
 |---|---|
-| **PC-App** (Quellcode in `source/`) | Lazarus/Free-Pascal-Windows-Programm. Tabellenansicht + optische Regalansicht, Bearbeiten-Dialog, DOSBox-/ScummVM-Start, Online-Abgleich, Nextcloud-Sync, Tauschbörse. Die fertig gebaute `SpieleSammlung.exe` liegt direkt im Repo-Root neben den benötigten DLLs – einfach herunterladen und starten, ohne selbst bauen zu müssen. |
+| **PC-App** (Quellcode in `source/`) | Lazarus/Free-Pascal-Windows-Programm. Tabellenansicht + optische Regalansicht, Bearbeiten-Dialog, DOSBox-/ScummVM-Start, Online-Abgleich, Nextcloud-Sync, Tauschbörse. Die fertig gebaute `SpieleSammlung.exe` liegt gepackt als `SpieleSammlung.zip` im Repo-Root neben den benötigten DLLs – einfach herunterladen, entpacken und starten, ohne selbst bauen zu müssen. |
 | **Web-App** (`docs/index.html`) | Mobile/Desktop-Begleit-App, gehostet über GitHub Pages. Kamera-Erfassung (Cover fotografieren, Barcode scannen), Nextcloud-/Google-Drive-Sync, Tauschbörse/Wunschliste. Live unter [osmodia666.github.io/BigBox-PC-Sammlung](https://osmodia666.github.io/BigBox-PC-Sammlung/). |
 | **Mobile-Mockup** (`mobile-app/BigBoxMobile.html`) | Leichtgewichtige, rein clientseitige Variante ohne Cloud-Anbindung (z. B. als eigenständige Datei nutzbar, keine Internetverbindung nötig). |
 
@@ -25,7 +25,7 @@ Beide Haupt-Apps lesen/schreiben dasselbe pipe-getrennte CSV-Format (siehe unten
 
 ## PC-App: einfach nutzen oder selbst bauen
 
-**Nur nutzen:** `SpieleSammlung.exe` im Repo-Root herunterladen – `libcrypto-4-x64.dll` und `libssl-4-x64.dll` liegen direkt daneben und werden für RAWG/IGDB/Nextcloud-Anfragen (HTTPS) benötigt, also alle drei Dateien zusammen in denselben Ordner legen und starten.
+**Nur nutzen:** `SpieleSammlung.zip` im Repo-Root herunterladen und entpacken (die `.exe` allein ist mit ca. 47 MB größer als GitHubs Obergrenze von 25 MB pro Datei beim Web-Upload, daher gepackt). Die entpackte `SpieleSammlung.exe` neben `libcrypto-4-x64.dll` und `libssl-4-x64.dll` legen (liegen bereits im Repo-Root) – alle drei Dateien werden für RAWG/IGDB/Nextcloud-Anfragen (HTTPS) im selben Ordner benötigt.
 
 **Selbst bauen** (z. B. um am Code etwas zu ändern): der komplette Quellcode liegt in `source/`.
 

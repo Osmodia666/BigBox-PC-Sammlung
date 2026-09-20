@@ -10,5 +10,8 @@ source/*.compiled
 backup/
 *.bak~
 
-# Die fertige SpieleSammlung.exe im Root wird bewusst NICHT ignoriert -
-# die wird manuell gebaut und eingecheckt (siehe README).
+# Die fertige SpieleSammlung.zip im Root wird bewusst NICHT ignoriert -
+# die wird manuell gebaut, gepackt und eingecheckt (siehe README). Die
+# rohe .exe wird nicht eingecheckt (47 MB, ueber GitHubs 25-MB-Grenze
+# fuer den Web-Upload).
+*.exe
